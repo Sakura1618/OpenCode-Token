@@ -1,0 +1,14 @@
+{
+  "openai:gpt-4.1-mini": {
+    "provider": "openai",
+    "model": "gpt-4.1-mini",
+    "input_price_per_million": 0.4,
+    "output_price_per_million": 1.6
+  },
+  "anthropic:claude-3-5-sonnet": {
+    "provider": "anthropic",
+    "model": "claude-3-5-sonnet",
+    "input_price_per_million": 3.0,
+    "output_price_per_million": 15.0
+  }
+}
