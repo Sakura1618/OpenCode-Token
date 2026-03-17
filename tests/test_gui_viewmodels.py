@@ -532,20 +532,24 @@ def test_overview_composition_chart_uses_input_output_reasoning_cards():
     assert values == [40, 50, 10]
 
 
-def test_refresh_overview_chart_methods_pass_expected_data_to_plotters(monkeypatch):
+def test_scale_tokens_to_millions_handles_bad_inputs_and_scales_numbers():
+    assert gui_module.scale_tokens_to_millions([2_000_000, None, "bad", 500_000]) == [2.0, 0.0, 0.0, 0.5]
+
+
+def test_refresh_overview_chart_methods_scale_tokens_to_millions_and_use_m_labels(monkeypatch):
     calls = []
     app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
     app.viewmodels = {
         "overview": {
-            "cards": {"input_tokens": 40, "output_tokens": 50, "reasoning_tokens": 10},
+            "cards": {"input_tokens": 400_000, "output_tokens": 500_000, "reasoning_tokens": 100_000},
             "daily_rows": [
-                {"day": "2024-03-10", "total_tokens": 20},
-                {"day": "2024-03-09", "total_tokens": 10},
+                {"day": "2024-03-10", "total_tokens": 2_500_000},
+                {"day": "2024-03-09", "total_tokens": 2_000_000},
             ],
         },
         "models": [
-            {"provider": "openai", "model": "m1", "total_tokens": 10},
-            {"provider": "openai", "model": "m2", "total_tokens": 30},
+            {"provider": "openai", "model": "m1", "total_tokens": 1_000_000},
+            {"provider": "openai", "model": "m2", "total_tokens": 3_000_000},
         ],
     }
     app.charts = {
@@ -571,8 +575,8 @@ def test_refresh_overview_chart_methods_pass_expected_data_to_plotters(monkeypat
             {
                 "title": "Daily Tokens",
                 "labels": ["2024-03-09", "2024-03-10"],
-                "values": [10, 20],
-                "ylabel": "Tokens",
+                "values": [2.0, 2.5],
+                "ylabel": "Tokens (M)",
             },
         ),
         (
@@ -580,16 +584,16 @@ def test_refresh_overview_chart_methods_pass_expected_data_to_plotters(monkeypat
             {
                 "title": "Top Models",
                 "labels": ["openai/m2", "openai/m1"],
-                "values": [30, 10],
-                "xlabel": "Tokens",
+                "values": [3.0, 1.0],
+                "xlabel": "Tokens (M)",
             },
         ),
         (
             "pie",
             {
-                "title": "Token Composition",
+                "title": "Token Composition (M)",
                 "labels": ["Input", "Output", "Reasoning"],
-                "values": [40, 50, 10],
+                "values": [0.4, 0.5, 0.1],
             },
         ),
     ]
@@ -603,21 +607,21 @@ def test_draw_chart_raises_when_chart_is_not_registered():
         app._draw_chart("missing", lambda figure, **kwargs: None, title="Missing")
 
 
-def test_refresh_analysis_charts_pass_expected_data_to_plotters(monkeypatch):
+def test_refresh_analysis_charts_scale_tokens_to_millions_and_use_m_labels(monkeypatch):
     calls = []
     app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
     app.viewmodels = {
         "models": [
-            {"provider": "openai", "model": "m1", "total_tokens": 10},
-            {"provider": "openai", "model": "m2", "total_tokens": 30},
+            {"provider": "openai", "model": "m1", "total_tokens": 1_000_000},
+            {"provider": "openai", "model": "m2", "total_tokens": 3_000_000},
         ],
         "days": [
-            {"day": "2024-03-10", "total_tokens": 20},
-            {"day": "2024-03-09", "total_tokens": 10},
+            {"day": "2024-03-10", "total_tokens": 2_500_000},
+            {"day": "2024-03-09", "total_tokens": 2_000_000},
         ],
         "sessions": [
-            {"session_id": "s1", "session_title": "", "total_tokens": 5},
-            {"session_id": "s2", "session_title": "Demo", "total_tokens": 8},
+            {"session_id": "s1", "session_title": "", "total_tokens": 500_000},
+            {"session_id": "s2", "session_title": "Demo", "total_tokens": 2_000_000},
         ],
     }
     app.charts = {
@@ -642,8 +646,8 @@ def test_refresh_analysis_charts_pass_expected_data_to_plotters(monkeypatch):
             {
                 "title": "Top Models",
                 "labels": ["openai/m2", "openai/m1"],
-                "values": [30, 10],
-                "xlabel": "Tokens",
+                "values": [3.0, 1.0],
+                "xlabel": "Tokens (M)",
             },
         ),
         (
@@ -651,8 +655,8 @@ def test_refresh_analysis_charts_pass_expected_data_to_plotters(monkeypatch):
             {
                 "title": "Daily Tokens",
                 "labels": ["2024-03-09", "2024-03-10"],
-                "values": [10, 20],
-                "ylabel": "Tokens",
+                "values": [2.0, 2.5],
+                "ylabel": "Tokens (M)",
             },
         ),
         (
@@ -660,8 +664,8 @@ def test_refresh_analysis_charts_pass_expected_data_to_plotters(monkeypatch):
             {
                 "title": "Top Sessions",
                 "labels": ["Demo", "s1"],
-                "values": [8, 5],
-                "xlabel": "Tokens",
+                "values": [2.0, 0.5],
+                "xlabel": "Tokens (M)",
             },
         ),
     ]

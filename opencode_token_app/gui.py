@@ -24,6 +24,16 @@ class ChartRefreshError(RuntimeError):
     pass
 
 
+def scale_tokens_to_millions(values):
+    scaled = []
+    for value in values:
+        try:
+            scaled.append(float(value) / 1_000_000)
+        except (TypeError, ValueError):
+            scaled.append(0.0)
+    return scaled
+
+
 def build_top_model_chart_data(rows):
     sorted_rows = sorted(rows, key=lambda row: row.get("total_tokens", 0) or 0, reverse=True)[:10]
     labels = []
@@ -259,8 +269,8 @@ class OpenCodeTokenApp(ttk.Frame):
                 plot_line_chart,
                 title="Daily Tokens",
                 labels=day_labels,
-                values=day_values,
-                ylabel="Tokens",
+                values=scale_tokens_to_millions(day_values),
+                ylabel="Tokens (M)",
             )
         except ChartRefreshError:
             raise
@@ -278,8 +288,8 @@ class OpenCodeTokenApp(ttk.Frame):
                 plot_horizontal_bar_chart,
                 title="Top Models",
                 labels=model_labels,
-                values=model_values,
-                xlabel="Tokens",
+                values=scale_tokens_to_millions(model_values),
+                xlabel="Tokens (M)",
             )
         except ChartRefreshError:
             raise
@@ -298,9 +308,9 @@ class OpenCodeTokenApp(ttk.Frame):
             self._draw_chart(
                 "overview_composition",
                 plot_pie_chart,
-                title="Token Composition",
+                title="Token Composition (M)",
                 labels=composition_labels,
-                values=composition_values,
+                values=scale_tokens_to_millions(composition_values),
             )
         except ChartRefreshError:
             raise
@@ -318,8 +328,8 @@ class OpenCodeTokenApp(ttk.Frame):
                 plot_horizontal_bar_chart,
                 title="Top Models",
                 labels=labels,
-                values=values,
-                xlabel="Tokens",
+                values=scale_tokens_to_millions(values),
+                xlabel="Tokens (M)",
             )
         except ChartRefreshError:
             raise
@@ -337,8 +347,8 @@ class OpenCodeTokenApp(ttk.Frame):
                 plot_line_chart,
                 title="Daily Tokens",
                 labels=labels,
-                values=values,
-                ylabel="Tokens",
+                values=scale_tokens_to_millions(values),
+                ylabel="Tokens (M)",
             )
         except ChartRefreshError:
             raise
@@ -356,8 +366,8 @@ class OpenCodeTokenApp(ttk.Frame):
                 plot_horizontal_bar_chart,
                 title="Top Sessions",
                 labels=labels,
-                values=values,
-                xlabel="Tokens",
+                values=scale_tokens_to_millions(values),
+                xlabel="Tokens (M)",
             )
         except ChartRefreshError:
             raise
