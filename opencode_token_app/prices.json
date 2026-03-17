@@ -10,5 +10,31 @@
     "model": "claude-3-5-sonnet",
     "input_price_per_million": 3.0,
     "output_price_per_million": 15.0
+  },
+  "openai:gpt-5.4": {
+    "provider": "openai",
+    "model": "gpt-5.4",
+    "pricing_mode": "session_tiered",
+    "session_tiering": {
+      "scope": "session",
+      "metric": "input_tokens",
+      "threshold": 272000,
+      "comparison": "gt",
+      "trigger": "any_row",
+      "default_tier": "short_context",
+      "triggered_tier": "long_context"
+    },
+    "tiers": {
+      "short_context": {
+        "input_price_per_million": 2.5,
+        "cache_read_price_per_million": 0.25,
+        "output_price_per_million": 15.0
+      },
+      "long_context": {
+        "input_price_per_million": 5.0,
+        "cache_read_price_per_million": 0.5,
+        "output_price_per_million": 22.5
+      }
+    }
   }
 }
