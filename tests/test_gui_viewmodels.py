@@ -10,6 +10,7 @@ from opencode_token_app.gui import ChartRefreshError, OpenCodeTokenApp, default_
 from opencode_token_app.viewmodels import (
     build_application_viewmodels,
     build_overview_viewmodel,
+    format_token_millions,
 )
 
 
@@ -29,6 +30,33 @@ def test_build_overview_viewmodel_returns_cards_and_chart_rows():
     assert vm["cards"]["estimated_cost_total"] == 1.5
     assert vm["cards"]["recorded_cost_total"] == 1.2
     assert vm["daily_rows"][0]["day"] == "2024-03-09"
+
+
+def test_overview_viewmodel_adds_token_display_fields():
+    datasets = {
+        "summary": {
+            "total_tokens": 1234567,
+            "input_tokens": 400000,
+            "output_tokens": 830000,
+            "reasoning_tokens": 4567,
+            "estimated_cost_total": 1.5,
+            "recorded_cost_total": 1.2,
+        },
+        "by_day": [{"day": "2024-03-09", "total_tokens": 1234567}],
+    }
+
+    vm = build_overview_viewmodel(datasets)
+
+    assert vm["cards"]["total_tokens"] == 1234567
+    assert vm["cards"]["input_tokens"] == 400000
+    assert vm["cards"]["output_tokens"] == 830000
+    assert vm["cards"]["reasoning_tokens"] == 4567
+    assert vm["cards"]["total_tokens_display"] == "1.23M"
+    assert vm["cards"]["input_tokens_display"] == "0.40M"
+    assert vm["cards"]["output_tokens_display"] == "0.83M"
+    assert vm["cards"]["reasoning_tokens_display"] == "0.00M"
+    assert vm["daily_rows"][0]["total_tokens"] == 1234567
+    assert vm["daily_rows"][0]["total_tokens_display"] == "1.23M"
 
 
 def test_build_application_viewmodels_exposes_model_day_session_and_raw_rows():
@@ -52,6 +80,31 @@ def test_build_application_viewmodels_exposes_model_day_session_and_raw_rows():
     assert vm["sessions"][0]["message_count"] == 2
     assert vm["sessions"][0]["recorded_cost_display"] == "1.20"
     assert vm["raw_messages"][0]["model"] == "gpt-4.1-mini"
+
+
+def test_build_application_viewmodels_adds_display_fields_for_visible_token_columns():
+    datasets = {
+        "summary": {"total_tokens": 0, "input_tokens": 0, "output_tokens": 0, "reasoning_tokens": 0},
+        "by_model": [{"provider": "OpenAI", "model": "gpt-4.1-mini", "total_tokens": 1234567}],
+        "by_day": [{"day": "2024-03-09", "total_tokens": 400000}],
+        "by_session": [{"session_id": "s1", "session_title": "Demo", "total_tokens": 830000}],
+        "raw_messages": [{"day": "2024-03-09", "provider": "OpenAI", "model": "gpt-4.1-mini", "total_tokens": 4567, "input_tokens": 400000, "output_tokens": 830000}],
+    }
+
+    vm = build_application_viewmodels(datasets)
+
+    assert vm["models"][0]["total_tokens"] == 1234567
+    assert vm["models"][0]["total_tokens_display"] == "1.23M"
+    assert vm["days"][0]["total_tokens"] == 400000
+    assert vm["days"][0]["total_tokens_display"] == "0.40M"
+    assert vm["sessions"][0]["total_tokens"] == 830000
+    assert vm["sessions"][0]["total_tokens_display"] == "0.83M"
+    assert vm["raw_messages"][0]["total_tokens"] == 4567
+    assert vm["raw_messages"][0]["total_tokens_display"] == "0.00M"
+    assert vm["raw_messages"][0]["input_tokens"] == 400000
+    assert vm["raw_messages"][0]["input_tokens_display"] == "0.40M"
+    assert vm["raw_messages"][0]["output_tokens"] == 830000
+    assert vm["raw_messages"][0]["output_tokens_display"] == "0.83M"
 
 
 def test_build_application_viewmodels_marks_unpriced_rows():
@@ -83,6 +136,18 @@ def test_build_application_viewmodels_keeps_blank_cost_cells_when_missing():
     assert vm["models"][0]["recorded_cost_display"] == ""
     assert vm["raw_messages"][0]["estimated_cost_display"] == ""
     assert vm["raw_messages"][0]["recorded_cost_display"] == ""
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (None, "0.00M"),
+        ("bad", "0.00M"),
+        (1234567, "1.23M"),
+    ],
+)
+def test_token_display_formatter(value, expected):
+    assert format_token_millions(value) == expected
 
 
 def test_default_db_path_uses_userprofile(monkeypatch):

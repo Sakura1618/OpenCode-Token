@@ -4,6 +4,14 @@ def _format_cost(value):
     return f"{value:.2f}"
 
 
+def format_token_millions(value):
+    try:
+        tokens = float(value)
+    except (TypeError, ValueError):
+        tokens = 0.0
+    return f"{tokens / 1_000_000:.2f}M"
+
+
 def _price_status_label_from_counts(priced_count, unpriced_count):
     if unpriced_count:
         return "未定价"
@@ -21,10 +29,12 @@ def _price_status_label(status):
 
 
 def build_overview_viewmodel(datasets):
-    summary = datasets["summary"]
+    summary = dict(datasets["summary"])
+    for field in ("total_tokens", "input_tokens", "output_tokens", "reasoning_tokens"):
+        summary[f"{field}_display"] = format_token_millions(summary.get(field))
     return {
         "cards": summary,
-        "daily_rows": datasets.get("by_day", []),
+        "daily_rows": _decorate_aggregate_rows(datasets.get("by_day", [])),
     }
 
 
@@ -32,6 +42,7 @@ def _decorate_aggregate_rows(rows):
     decorated = []
     for row in rows:
         new_row = dict(row)
+        new_row["total_tokens_display"] = format_token_millions(row.get("total_tokens"))
         new_row["estimated_cost_display"] = _format_cost(row.get("estimated_cost_total"))
         new_row["recorded_cost_display"] = _format_cost(row.get("recorded_cost_total"))
         new_row["price_status_label"] = _price_status_label_from_counts(
@@ -46,6 +57,9 @@ def _decorate_raw_rows(rows):
     decorated = []
     for row in rows:
         new_row = dict(row)
+        new_row["total_tokens_display"] = format_token_millions(row.get("total_tokens"))
+        new_row["input_tokens_display"] = format_token_millions(row.get("input_tokens"))
+        new_row["output_tokens_display"] = format_token_millions(row.get("output_tokens"))
         new_row["estimated_cost_display"] = _format_cost(row.get("estimated_cost"))
         new_row["recorded_cost_display"] = _format_cost(row.get("cost"))
         new_row["price_status_label"] = _price_status_label(row.get("price_status"))
