@@ -10,6 +10,7 @@ from opencode_token_app.gui import ChartRefreshError, OpenCodeTokenApp, default_
 from opencode_token_app.viewmodels import (
     build_application_viewmodels,
     build_overview_viewmodel,
+    format_token_millions,
 )
 
 
@@ -29,6 +30,33 @@ def test_build_overview_viewmodel_returns_cards_and_chart_rows():
     assert vm["cards"]["estimated_cost_total"] == 1.5
     assert vm["cards"]["recorded_cost_total"] == 1.2
     assert vm["daily_rows"][0]["day"] == "2024-03-09"
+
+
+def test_overview_viewmodel_adds_token_display_fields():
+    datasets = {
+        "summary": {
+            "total_tokens": 1234567,
+            "input_tokens": 400000,
+            "output_tokens": 830000,
+            "reasoning_tokens": 4567,
+            "estimated_cost_total": 1.5,
+            "recorded_cost_total": 1.2,
+        },
+        "by_day": [{"day": "2024-03-09", "total_tokens": 1234567}],
+    }
+
+    vm = build_overview_viewmodel(datasets)
+
+    assert vm["cards"]["total_tokens"] == 1234567
+    assert vm["cards"]["input_tokens"] == 400000
+    assert vm["cards"]["output_tokens"] == 830000
+    assert vm["cards"]["reasoning_tokens"] == 4567
+    assert vm["cards"]["total_tokens_display"] == "1.23M"
+    assert vm["cards"]["input_tokens_display"] == "0.40M"
+    assert vm["cards"]["output_tokens_display"] == "0.83M"
+    assert vm["cards"]["reasoning_tokens_display"] == "0.00M"
+    assert vm["daily_rows"][0]["total_tokens"] == 1234567
+    assert vm["daily_rows"][0]["total_tokens_display"] == "1.23M"
 
 
 def test_build_application_viewmodels_exposes_model_day_session_and_raw_rows():
@@ -52,6 +80,31 @@ def test_build_application_viewmodels_exposes_model_day_session_and_raw_rows():
     assert vm["sessions"][0]["message_count"] == 2
     assert vm["sessions"][0]["recorded_cost_display"] == "1.20"
     assert vm["raw_messages"][0]["model"] == "gpt-4.1-mini"
+
+
+def test_build_application_viewmodels_adds_display_fields_for_visible_token_columns():
+    datasets = {
+        "summary": {"total_tokens": 0, "input_tokens": 0, "output_tokens": 0, "reasoning_tokens": 0},
+        "by_model": [{"provider": "OpenAI", "model": "gpt-4.1-mini", "total_tokens": 1234567}],
+        "by_day": [{"day": "2024-03-09", "total_tokens": 400000}],
+        "by_session": [{"session_id": "s1", "session_title": "Demo", "total_tokens": 830000}],
+        "raw_messages": [{"day": "2024-03-09", "provider": "OpenAI", "model": "gpt-4.1-mini", "total_tokens": 4567, "input_tokens": 400000, "output_tokens": 830000}],
+    }
+
+    vm = build_application_viewmodels(datasets)
+
+    assert vm["models"][0]["total_tokens"] == 1234567
+    assert vm["models"][0]["total_tokens_display"] == "1.23M"
+    assert vm["days"][0]["total_tokens"] == 400000
+    assert vm["days"][0]["total_tokens_display"] == "0.40M"
+    assert vm["sessions"][0]["total_tokens"] == 830000
+    assert vm["sessions"][0]["total_tokens_display"] == "0.83M"
+    assert vm["raw_messages"][0]["total_tokens"] == 4567
+    assert vm["raw_messages"][0]["total_tokens_display"] == "0.00M"
+    assert vm["raw_messages"][0]["input_tokens"] == 400000
+    assert vm["raw_messages"][0]["input_tokens_display"] == "0.40M"
+    assert vm["raw_messages"][0]["output_tokens"] == 830000
+    assert vm["raw_messages"][0]["output_tokens_display"] == "0.83M"
 
 
 def test_build_application_viewmodels_marks_unpriced_rows():
@@ -83,6 +136,18 @@ def test_build_application_viewmodels_keeps_blank_cost_cells_when_missing():
     assert vm["models"][0]["recorded_cost_display"] == ""
     assert vm["raw_messages"][0]["estimated_cost_display"] == ""
     assert vm["raw_messages"][0]["recorded_cost_display"] == ""
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (None, "0.00M"),
+        ("bad", "0.00M"),
+        (1234567, "1.23M"),
+    ],
+)
+def test_token_display_formatter(value, expected):
+    assert format_token_millions(value) == expected
 
 
 def test_default_db_path_uses_userprofile(monkeypatch):
@@ -233,6 +298,147 @@ def test_populate_view_refreshes_tables_and_charts():
     assert len([call for call in calls if call != "charts"]) == 5
 
 
+def test_populate_view_uses_token_display_fields_for_cards_and_tables():
+    class FakeLabel:
+        def __init__(self):
+            self.text = None
+
+        def configure(self, **kwargs):
+            self.text = kwargs["text"]
+
+    class FakeTree:
+        def __init__(self, columns):
+            self.columns = tuple(columns)
+            self.rows = []
+
+        def get_children(self):
+            return []
+
+        def delete(self, item):
+            raise AssertionError("delete should not be called for empty tree")
+
+        def insert(self, parent, index, values):
+            self.rows.append(tuple(values))
+
+        def __getitem__(self, key):
+            if key != "columns":
+                raise KeyError(key)
+            return self.columns
+
+    app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
+    app.viewmodels = {
+        "overview": {
+            "cards": {
+                "total_tokens": 1234567,
+                "total_tokens_display": "1.23M",
+                "input_tokens": 400000,
+                "input_tokens_display": "0.40M",
+                "output_tokens": 830000,
+                "output_tokens_display": "0.83M",
+                "reasoning_tokens": 4567,
+                "reasoning_tokens_display": "0.00M",
+                "estimated_cost_total": "1.50",
+                "estimated_cost_total_display": "wrong-cost-display",
+                "recorded_cost_total": "1.20",
+                "recorded_cost_total_display": "wrong-recorded-display",
+            },
+            "daily_rows": [
+                {
+                    "day": "2024-03-09",
+                    "total_tokens": 1234567,
+                    "total_tokens_display": "1.23M",
+                    "estimated_cost_total": "1.50",
+                }
+            ],
+        },
+        "models": [
+            {
+                "provider": "openai",
+                "model": "gpt-4.1-mini",
+                "total_tokens": 1234567,
+                "total_tokens_display": "1.23M",
+                "estimated_cost_display": "1.50",
+                "recorded_cost_display": "1.20",
+            }
+        ],
+        "days": [
+            {
+                "day": "2024-03-09",
+                "total_tokens": 400000,
+                "total_tokens_display": "0.40M",
+                "estimated_cost_display": "1.50",
+                "recorded_cost_display": "1.20",
+            }
+        ],
+        "sessions": [
+            {
+                "session_id": "s1",
+                "session_title": "Demo",
+                "total_tokens": 830000,
+                "total_tokens_display": "0.83M",
+                "estimated_cost_display": "1.50",
+                "recorded_cost_display": "1.20",
+            }
+        ],
+        "raw_messages": [
+            {
+                "provider": "openai",
+                "model": "gpt-4.1-mini",
+                "total_tokens": 4567,
+                "total_tokens_display": "0.00M",
+                "input_tokens": 400000,
+                "input_tokens_display": "0.40M",
+                "output_tokens": 830000,
+                "output_tokens_display": "0.83M",
+                "estimated_cost_display": "1.50",
+                "recorded_cost_display": "1.20",
+            }
+        ],
+    }
+    app.overview_card_labels = {
+        "total_tokens": FakeLabel(),
+        "input_tokens": FakeLabel(),
+        "output_tokens": FakeLabel(),
+        "reasoning_tokens": FakeLabel(),
+        "estimated_cost_total": FakeLabel(),
+        "recorded_cost_total": FakeLabel(),
+    }
+    app.overview_table = FakeTree(["day", "total_tokens_display", "estimated_cost_total"])
+    app.treeviews = {
+        "models": FakeTree(["provider", "model", "total_tokens_display", "estimated_cost_display", "recorded_cost_display"]),
+        "days": FakeTree(["day", "total_tokens_display", "estimated_cost_display", "recorded_cost_display"]),
+        "sessions": FakeTree(["session_id", "session_title", "total_tokens_display", "estimated_cost_display", "recorded_cost_display"]),
+        "raw_messages": FakeTree([
+            "provider",
+            "model",
+            "total_tokens_display",
+            "input_tokens_display",
+            "output_tokens_display",
+            "estimated_cost_display",
+            "recorded_cost_display",
+        ]),
+    }
+    app._refresh_charts = lambda: []
+
+    app._populate_view()
+
+    assert app.overview_card_labels["total_tokens"].text == "total_tokens: 1.23M"
+    assert app.overview_card_labels["input_tokens"].text == "input_tokens: 0.40M"
+    assert app.overview_card_labels["output_tokens"].text == "output_tokens: 0.83M"
+    assert app.overview_card_labels["reasoning_tokens"].text == "reasoning_tokens: 0.00M"
+    assert app.overview_card_labels["estimated_cost_total"].text == "estimated_cost_total: 1.50"
+    assert app.overview_card_labels["recorded_cost_total"].text == "recorded_cost_total: 1.20"
+    assert app.overview_table.rows == [("2024-03-09", "1.23M", "1.50")]
+    assert app.treeviews["models"].rows == [
+        ("openai", "gpt-4.1-mini", "1.23M", "1.50", "1.20")
+    ]
+    assert app.treeviews["days"].rows == [("2024-03-09", "0.40M", "1.50", "1.20")]
+    assert app.treeviews["sessions"].rows == [("s1", "Demo", "0.83M", "1.50", "1.20")]
+    assert app.treeviews["raw_messages"].rows == [
+        ("openai", "gpt-4.1-mini", "0.00M", "0.40M", "0.83M", "1.50", "1.20")
+    ]
+
+
 def test_refresh_charts_isolates_single_chart_failure():
     calls = []
     app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
@@ -326,20 +532,24 @@ def test_overview_composition_chart_uses_input_output_reasoning_cards():
     assert values == [40, 50, 10]
 
 
-def test_refresh_overview_chart_methods_pass_expected_data_to_plotters(monkeypatch):
+def test_scale_tokens_to_millions_handles_bad_inputs_and_scales_numbers():
+    assert gui_module.scale_tokens_to_millions([2_000_000, None, "bad", 500_000]) == [2.0, 0.0, 0.0, 0.5]
+
+
+def test_refresh_overview_chart_methods_scale_tokens_to_millions_and_use_m_labels(monkeypatch):
     calls = []
     app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
     app.viewmodels = {
         "overview": {
-            "cards": {"input_tokens": 40, "output_tokens": 50, "reasoning_tokens": 10},
+            "cards": {"input_tokens": 400_000, "output_tokens": 500_000, "reasoning_tokens": 100_000},
             "daily_rows": [
-                {"day": "2024-03-10", "total_tokens": 20},
-                {"day": "2024-03-09", "total_tokens": 10},
+                {"day": "2024-03-10", "total_tokens": 2_500_000},
+                {"day": "2024-03-09", "total_tokens": 2_000_000},
             ],
         },
         "models": [
-            {"provider": "openai", "model": "m1", "total_tokens": 10},
-            {"provider": "openai", "model": "m2", "total_tokens": 30},
+            {"provider": "openai", "model": "m1", "total_tokens": 1_000_000},
+            {"provider": "openai", "model": "m2", "total_tokens": 3_000_000},
         ],
     }
     app.charts = {
@@ -365,8 +575,8 @@ def test_refresh_overview_chart_methods_pass_expected_data_to_plotters(monkeypat
             {
                 "title": "Daily Tokens",
                 "labels": ["2024-03-09", "2024-03-10"],
-                "values": [10, 20],
-                "ylabel": "Tokens",
+                "values": [2.0, 2.5],
+                "ylabel": "Tokens (M)",
             },
         ),
         (
@@ -374,16 +584,16 @@ def test_refresh_overview_chart_methods_pass_expected_data_to_plotters(monkeypat
             {
                 "title": "Top Models",
                 "labels": ["openai/m2", "openai/m1"],
-                "values": [30, 10],
-                "xlabel": "Tokens",
+                "values": [3.0, 1.0],
+                "xlabel": "Tokens (M)",
             },
         ),
         (
             "pie",
             {
-                "title": "Token Composition",
+                "title": "Token Composition (M)",
                 "labels": ["Input", "Output", "Reasoning"],
-                "values": [40, 50, 10],
+                "values": [0.4, 0.5, 0.1],
             },
         ),
     ]
@@ -397,21 +607,21 @@ def test_draw_chart_raises_when_chart_is_not_registered():
         app._draw_chart("missing", lambda figure, **kwargs: None, title="Missing")
 
 
-def test_refresh_analysis_charts_pass_expected_data_to_plotters(monkeypatch):
+def test_refresh_analysis_charts_scale_tokens_to_millions_and_use_m_labels(monkeypatch):
     calls = []
     app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
     app.viewmodels = {
         "models": [
-            {"provider": "openai", "model": "m1", "total_tokens": 10},
-            {"provider": "openai", "model": "m2", "total_tokens": 30},
+            {"provider": "openai", "model": "m1", "total_tokens": 1_000_000},
+            {"provider": "openai", "model": "m2", "total_tokens": 3_000_000},
         ],
         "days": [
-            {"day": "2024-03-10", "total_tokens": 20},
-            {"day": "2024-03-09", "total_tokens": 10},
+            {"day": "2024-03-10", "total_tokens": 2_500_000},
+            {"day": "2024-03-09", "total_tokens": 2_000_000},
         ],
         "sessions": [
-            {"session_id": "s1", "session_title": "", "total_tokens": 5},
-            {"session_id": "s2", "session_title": "Demo", "total_tokens": 8},
+            {"session_id": "s1", "session_title": "", "total_tokens": 500_000},
+            {"session_id": "s2", "session_title": "Demo", "total_tokens": 2_000_000},
         ],
     }
     app.charts = {
@@ -436,8 +646,8 @@ def test_refresh_analysis_charts_pass_expected_data_to_plotters(monkeypatch):
             {
                 "title": "Top Models",
                 "labels": ["openai/m2", "openai/m1"],
-                "values": [30, 10],
-                "xlabel": "Tokens",
+                "values": [3.0, 1.0],
+                "xlabel": "Tokens (M)",
             },
         ),
         (
@@ -445,8 +655,8 @@ def test_refresh_analysis_charts_pass_expected_data_to_plotters(monkeypatch):
             {
                 "title": "Daily Tokens",
                 "labels": ["2024-03-09", "2024-03-10"],
-                "values": [10, 20],
-                "ylabel": "Tokens",
+                "values": [2.0, 2.5],
+                "ylabel": "Tokens (M)",
             },
         ),
         (
@@ -454,8 +664,8 @@ def test_refresh_analysis_charts_pass_expected_data_to_plotters(monkeypatch):
             {
                 "title": "Top Sessions",
                 "labels": ["Demo", "s1"],
-                "values": [8, 5],
-                "xlabel": "Tokens",
+                "values": [2.0, 0.5],
+                "xlabel": "Tokens (M)",
             },
         ),
     ]
