@@ -10,7 +10,39 @@ from opencode_token_app.pricing import (
     load_price_map,
     merge_price_maps,
     normalize_price_map,
+    price_loaded_usage,
 )
+
+
+def price_map_for_gpt54():
+    return {
+        "openai:gpt-5.4": {
+            "provider": "openai",
+            "model": "gpt-5.4",
+            "pricing_mode": "session_tiered",
+            "session_tiering": {
+                "scope": "session",
+                "metric": "input_tokens",
+                "threshold": 272000,
+                "comparison": "gt",
+                "trigger": "any_row",
+                "default_tier": "short_context",
+                "triggered_tier": "long_context",
+            },
+            "tiers": {
+                "short_context": {
+                    "input_price_per_million": 2.5,
+                    "cache_read_price_per_million": 0.25,
+                    "output_price_per_million": 15.0,
+                },
+                "long_context": {
+                    "input_price_per_million": 5.0,
+                    "cache_read_price_per_million": 0.5,
+                    "output_price_per_million": 22.5,
+                },
+            },
+        }
+    }
 
 
 def test_merge_price_maps_prefers_override_values():
@@ -117,6 +149,220 @@ def test_enrich_raw_rows_with_pricing_sets_estimated_cost_and_status():
     assert enriched[0]["price_source"] == "bundled"
 
 
+def test_enrich_raw_rows_with_flat_pricing_sets_flat_metadata_and_existing_costs():
+    rows = [
+        {
+            "provider": "OpenAI",
+            "model": "gpt-4.1-mini",
+            "input_tokens": 500000,
+            "output_tokens": 250000,
+            "cache_read": 100000,
+            "cache_write": 50000,
+        }
+    ]
+    price_map = {
+        "openai:gpt-4.1-mini": {
+            "provider": "openai",
+            "model": "gpt-4.1-mini",
+            "input_price_per_million": 1.0,
+            "output_price_per_million": 2.0,
+            "cache_read_price_per_million": 0.1,
+            "cache_write_price_per_million": 0.2,
+        }
+    }
+
+    enriched = enrich_raw_rows_with_pricing(rows, price_map)
+
+    assert enriched[0]["estimated_cost"] == 1.02
+    assert enriched[0]["pricing_mode"] == "flat"
+    assert enriched[0]["pricing_tier"] == ""
+
+
+def test_enrich_raw_rows_with_session_tiered_pricing_uses_short_context_rates():
+    rows = [
+        {
+            "session_id": "s1",
+            "provider": "OpenAI",
+            "model": "gpt-5.4",
+            "input_tokens": 200000,
+            "output_tokens": 100000,
+            "cache_read": 100000,
+            "cache_write": 0,
+        }
+    ]
+
+    enriched = enrich_raw_rows_with_pricing(rows, price_map_for_gpt54())
+
+    assert enriched[0]["estimated_cost"] == 2.025
+    assert enriched[0]["pricing_mode"] == "session_tiered"
+    assert enriched[0]["pricing_tier"] == "short_context"
+
+
+def test_enrich_raw_rows_with_session_tiered_pricing_reprices_full_session_when_later_row_crosses_threshold():
+    rows = [
+        {
+            "session_id": "s1",
+            "provider": "OpenAI",
+            "model": "gpt-5.4",
+            "input_tokens": 200000,
+            "output_tokens": 100000,
+            "cache_read": 100000,
+            "cache_write": 0,
+        },
+        {
+            "session_id": "s1",
+            "provider": "OpenAI",
+            "model": "gpt-5.4",
+            "input_tokens": 300000,
+            "output_tokens": 0,
+            "cache_read": 0,
+            "cache_write": 0,
+        },
+    ]
+
+    enriched = enrich_raw_rows_with_pricing(rows, price_map_for_gpt54())
+
+    assert enriched[0]["estimated_cost"] == 3.3
+    assert enriched[0]["pricing_tier"] == "long_context"
+    assert enriched[1]["pricing_tier"] == "long_context"
+
+
+def test_session_tiered_pricing_keeps_exact_threshold_in_short_context():
+    rows = [
+        {
+            "session_id": "s1",
+            "provider": "OpenAI",
+            "model": "gpt-5.4",
+            "input_tokens": 272000,
+            "output_tokens": 0,
+            "cache_read": 0,
+            "cache_write": 0,
+        }
+    ]
+
+    enriched = enrich_raw_rows_with_pricing(rows, price_map_for_gpt54())
+
+    assert enriched[0]["pricing_tier"] == "short_context"
+
+
+def test_session_tiered_pricing_does_not_leak_between_sessions():
+    rows = [
+        {"session_id": "s1", "provider": "OpenAI", "model": "gpt-5.4", "input_tokens": 300000, "output_tokens": 0, "cache_read": 0, "cache_write": 0},
+        {"session_id": "s2", "provider": "OpenAI", "model": "gpt-5.4", "input_tokens": 200000, "output_tokens": 0, "cache_read": 0, "cache_write": 0},
+    ]
+
+    enriched = enrich_raw_rows_with_pricing(rows, price_map_for_gpt54())
+
+    assert enriched[0]["pricing_tier"] == "long_context"
+    assert enriched[1]["pricing_tier"] == "short_context"
+
+
+def test_session_tiered_pricing_marks_row_unpriced_when_session_id_missing():
+    rows = [{"provider": "OpenAI", "model": "gpt-5.4", "input_tokens": 200000, "output_tokens": 0, "cache_read": 0, "cache_write": 0}]
+
+    enriched = enrich_raw_rows_with_pricing(rows, price_map_for_gpt54())
+
+    assert enriched[0]["price_status"] == "unpriced"
+
+
+def test_session_tiered_pricing_treats_missing_metric_as_zero():
+    rows = [{"session_id": "s1", "provider": "OpenAI", "model": "gpt-5.4", "output_tokens": 0, "cache_read": 0, "cache_write": 0}]
+
+    enriched = enrich_raw_rows_with_pricing(rows, price_map_for_gpt54())
+
+    assert enriched[0]["pricing_tier"] == "short_context"
+
+
+def test_session_tiered_pricing_marks_row_unpriced_for_non_numeric_metric():
+    rows = [{"session_id": "s1", "provider": "OpenAI", "model": "gpt-5.4", "input_tokens": "abc", "output_tokens": 0, "cache_read": 0, "cache_write": 0}]
+
+    enriched = enrich_raw_rows_with_pricing(rows, price_map_for_gpt54())
+
+    assert enriched[0]["price_status"] == "unpriced"
+
+
+def test_session_tiered_pricing_marks_row_unpriced_for_unsupported_config():
+    rows = [{"session_id": "s1", "provider": "OpenAI", "model": "gpt-5.4", "input_tokens": 1, "output_tokens": 0, "cache_read": 0, "cache_write": 0}]
+    price_map = {
+        "openai:gpt-5.4": {
+            "provider": "openai",
+            "model": "gpt-5.4",
+            "pricing_mode": "session_tiered",
+            "session_tiering": {"scope": "session", "metric": "input_tokens", "threshold": 272000, "comparison": "gte", "trigger": "any_row", "default_tier": "short_context", "triggered_tier": "long_context"},
+            "tiers": {
+                "short_context": {"input_price_per_million": 2.5, "output_price_per_million": 15.0},
+                "long_context": {"input_price_per_million": 5.0, "output_price_per_million": 22.5},
+            },
+        }
+    }
+
+    enriched = enrich_raw_rows_with_pricing(rows, price_map)
+
+    assert enriched[0]["price_status"] == "unpriced"
+
+
+def test_session_tiered_pricing_marks_row_unpriced_for_missing_metric_config():
+    rows = [{"session_id": "s1", "provider": "OpenAI", "model": "gpt-5.4", "input_tokens": 1, "output_tokens": 0, "cache_read": 0, "cache_write": 0}]
+    price_map = {
+        "openai:gpt-5.4": {
+            "provider": "openai",
+            "model": "gpt-5.4",
+            "pricing_mode": "session_tiered",
+            "session_tiering": {"scope": "session", "threshold": 272000, "comparison": "gt", "trigger": "any_row", "default_tier": "short_context", "triggered_tier": "long_context"},
+            "tiers": {
+                "short_context": {"input_price_per_million": 2.5, "output_price_per_million": 15.0},
+                "long_context": {"input_price_per_million": 5.0, "output_price_per_million": 22.5},
+            },
+            "price_source": "override",
+        }
+    }
+
+    enriched = enrich_raw_rows_with_pricing(rows, price_map)
+
+    assert enriched[0]["price_status"] == "unpriced"
+    assert enriched[0]["price_source"] == "override"
+
+
+def test_session_tiered_pricing_marks_row_unpriced_for_non_numeric_threshold():
+    rows = [{"session_id": "s1", "provider": "OpenAI", "model": "gpt-5.4", "input_tokens": 1, "output_tokens": 0, "cache_read": 0, "cache_write": 0}]
+    price_map = {
+        "openai:gpt-5.4": {
+            "provider": "openai",
+            "model": "gpt-5.4",
+            "pricing_mode": "session_tiered",
+            "session_tiering": {"scope": "session", "metric": "input_tokens", "threshold": "abc", "comparison": "gt", "trigger": "any_row", "default_tier": "short_context", "triggered_tier": "long_context"},
+            "tiers": {
+                "short_context": {"input_price_per_million": 2.5, "output_price_per_million": 15.0},
+                "long_context": {"input_price_per_million": 5.0, "output_price_per_million": 22.5},
+            },
+        }
+    }
+
+    enriched = enrich_raw_rows_with_pricing(rows, price_map)
+
+    assert enriched[0]["price_status"] == "unpriced"
+
+
+def test_session_tiered_pricing_marks_row_unpriced_when_required_rate_field_missing():
+    rows = [{"session_id": "s1", "provider": "OpenAI", "model": "gpt-5.4", "input_tokens": 1, "output_tokens": 0, "cache_read": 0, "cache_write": 0}]
+    price_map = {
+        "openai:gpt-5.4": {
+            "provider": "openai",
+            "model": "gpt-5.4",
+            "pricing_mode": "session_tiered",
+            "session_tiering": {"scope": "session", "metric": "input_tokens", "threshold": 272000, "comparison": "gt", "trigger": "any_row", "default_tier": "short_context", "triggered_tier": "long_context"},
+            "tiers": {
+                "short_context": {"input_price_per_million": 2.5},
+                "long_context": {"input_price_per_million": 5.0, "output_price_per_million": 22.5},
+            },
+        }
+    }
+
+    enriched = enrich_raw_rows_with_pricing(rows, price_map)
+
+    assert enriched[0]["price_status"] == "unpriced"
+
+
 def test_enrich_raw_rows_with_pricing_marks_override_source_when_override_prices_are_used():
     rows = [{"provider": "OpenAI", "model": "gpt-4.1-mini", "input_tokens": 1_000_000, "output_tokens": 0, "cache_read": 0, "cache_write": 0}]
     price_map = {"openai:gpt-4.1-mini": {"provider": "openai", "model": "gpt-4.1-mini", "input_price_per_million": 1.5, "output_price_per_million": 2.0, "price_source": "override"}}
@@ -166,6 +412,17 @@ def test_bundled_prices_json_contains_mainstream_seed_data():
     assert "output_price_per_million" in first_value
 
 
+def test_bundled_prices_json_contains_session_tiered_gpt54_config():
+    data = json.loads(Path("opencode_token_app/prices.json").read_text(encoding="utf-8"))
+
+    entry = data["openai:gpt-5.4"]
+
+    assert entry["pricing_mode"] == "session_tiered"
+    assert entry["session_tiering"]["threshold"] == 272000
+    assert entry["tiers"]["short_context"]["input_price_per_million"] == 2.5
+    assert entry["tiers"]["long_context"]["output_price_per_million"] == 22.5
+
+
 def test_apply_pricing_overlays_adds_estimated_cost_totals_and_counts():
     datasets = {
         "summary": {"message_count": 2},
@@ -192,6 +449,25 @@ def test_apply_pricing_overlays_adds_estimated_cost_totals_and_counts():
     assert result["by_day"][0]["estimated_cost_total"] == 1.0
     assert result["by_day"][0]["priced_message_count"] == 1
     assert result["by_day"][0]["unpriced_message_count"] == 1
+
+
+def test_price_loaded_usage_applies_bundled_gpt54_session_tier_to_export_data(monkeypatch):
+    monkeypatch.setattr("opencode_token_app.pricing.BUNDLED_PRICES_PATH", Path("opencode_token_app/prices.json"))
+    datasets = {
+        "summary": {"message_count": 2},
+        "by_model": [{"provider": "openai", "model": "gpt-5.4"}],
+        "by_session": [{"session_id": "s1", "session_title": "Demo"}],
+        "by_day": [{"day": "2026-03-18"}],
+        "raw_messages": [
+            {"session_id": "s1", "day": "2026-03-18", "provider": "openai", "model": "gpt-5.4", "input_tokens": 200000, "output_tokens": 100000, "cache_read": 100000, "cache_write": 0, "reasoning_tokens": 0},
+            {"session_id": "s1", "day": "2026-03-18", "provider": "openai", "model": "gpt-5.4", "input_tokens": 300000, "output_tokens": 0, "cache_read": 0, "cache_write": 0, "reasoning_tokens": 0},
+        ],
+    }
+
+    priced = price_loaded_usage(datasets)
+
+    assert priced["raw_messages"][0]["pricing_tier"] == "long_context"
+    assert priced["summary"]["estimated_cost_total"] == 4.8
 
 
 def test_cli_main_preserves_legacy_export_contract(monkeypatch, tmp_path):
