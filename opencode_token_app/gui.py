@@ -124,7 +124,7 @@ class OpenCodeTokenApp(ttk.Frame):
             if canvas is not None:
                 canvas.get_tk_widget().pack(fill="both", expand=True)
 
-        self.overview_table = self._create_treeview(frame, ["day", "total_tokens", "estimated_cost_total"])
+        self.overview_table = self._create_treeview(frame, ["day", "total_tokens_display", "estimated_cost_total"])
 
     def _build_analysis_tab(self, title, key):
         frame = self.tabs[title]
@@ -136,11 +136,11 @@ class OpenCodeTokenApp(ttk.Frame):
         if canvas is not None:
             canvas.get_tk_widget().pack(fill="both", expand=True)
         if key == "models":
-            columns = ["provider", "model", "message_count", "total_tokens", "estimated_cost_display", "recorded_cost_display", "price_status_label"]
+            columns = ["provider", "model", "message_count", "total_tokens_display", "estimated_cost_display", "recorded_cost_display", "price_status_label"]
         elif key == "days":
-            columns = ["day", "message_count", "total_tokens", "estimated_cost_display", "recorded_cost_display"]
+            columns = ["day", "message_count", "total_tokens_display", "estimated_cost_display", "recorded_cost_display"]
         else:
-            columns = ["session_id", "session_title", "message_count", "total_tokens", "estimated_cost_display", "recorded_cost_display"]
+            columns = ["session_id", "session_title", "message_count", "total_tokens_display", "estimated_cost_display", "recorded_cost_display"]
         self.treeviews[key] = self._create_treeview(frame, columns)
 
     def _build_raw_tab(self):
@@ -153,7 +153,7 @@ class OpenCodeTokenApp(ttk.Frame):
         ttk.Entry(filters).grid(row=0, column=3, padx=4)
         ttk.Label(filters, text="Model").grid(row=0, column=4, padx=4)
         ttk.Entry(filters).grid(row=0, column=5, padx=4)
-        columns = ["provider", "model", "role", "time_created_text", "total_tokens", "input_tokens", "output_tokens", "estimated_cost_display", "recorded_cost_display", "price_status_label"]
+        columns = ["provider", "model", "role", "time_created_text", "total_tokens_display", "input_tokens_display", "output_tokens_display", "estimated_cost_display", "recorded_cost_display", "price_status_label"]
         self.treeviews["raw_messages"] = self._create_treeview(frame, columns)
 
     def _create_treeview(self, parent, columns):
@@ -192,8 +192,14 @@ class OpenCodeTokenApp(ttk.Frame):
         if viewmodels is None:
             return []
         overview = viewmodels["overview"]
+        token_card_keys = {"total_tokens", "input_tokens", "output_tokens", "reasoning_tokens"}
         for key, label in self.overview_card_labels.items():
-            label.configure(text=f"{key}: {overview['cards'].get(key, '')}")
+            if key in token_card_keys:
+                display_key = f"{key}_display"
+                value = overview["cards"].get(display_key, overview["cards"].get(key, ""))
+            else:
+                value = overview["cards"].get(key, "")
+            label.configure(text=f"{key}: {value}")
         self._fill_tree(self.overview_table, overview["daily_rows"])
         self._fill_tree(self.treeviews["models"], viewmodels["models"])
         self._fill_tree(self.treeviews["days"], viewmodels["days"])

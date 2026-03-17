@@ -298,6 +298,147 @@ def test_populate_view_refreshes_tables_and_charts():
     assert len([call for call in calls if call != "charts"]) == 5
 
 
+def test_populate_view_uses_token_display_fields_for_cards_and_tables():
+    class FakeLabel:
+        def __init__(self):
+            self.text = None
+
+        def configure(self, **kwargs):
+            self.text = kwargs["text"]
+
+    class FakeTree:
+        def __init__(self, columns):
+            self.columns = tuple(columns)
+            self.rows = []
+
+        def get_children(self):
+            return []
+
+        def delete(self, item):
+            raise AssertionError("delete should not be called for empty tree")
+
+        def insert(self, parent, index, values):
+            self.rows.append(tuple(values))
+
+        def __getitem__(self, key):
+            if key != "columns":
+                raise KeyError(key)
+            return self.columns
+
+    app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
+    app.viewmodels = {
+        "overview": {
+            "cards": {
+                "total_tokens": 1234567,
+                "total_tokens_display": "1.23M",
+                "input_tokens": 400000,
+                "input_tokens_display": "0.40M",
+                "output_tokens": 830000,
+                "output_tokens_display": "0.83M",
+                "reasoning_tokens": 4567,
+                "reasoning_tokens_display": "0.00M",
+                "estimated_cost_total": "1.50",
+                "estimated_cost_total_display": "wrong-cost-display",
+                "recorded_cost_total": "1.20",
+                "recorded_cost_total_display": "wrong-recorded-display",
+            },
+            "daily_rows": [
+                {
+                    "day": "2024-03-09",
+                    "total_tokens": 1234567,
+                    "total_tokens_display": "1.23M",
+                    "estimated_cost_total": "1.50",
+                }
+            ],
+        },
+        "models": [
+            {
+                "provider": "openai",
+                "model": "gpt-4.1-mini",
+                "total_tokens": 1234567,
+                "total_tokens_display": "1.23M",
+                "estimated_cost_display": "1.50",
+                "recorded_cost_display": "1.20",
+            }
+        ],
+        "days": [
+            {
+                "day": "2024-03-09",
+                "total_tokens": 400000,
+                "total_tokens_display": "0.40M",
+                "estimated_cost_display": "1.50",
+                "recorded_cost_display": "1.20",
+            }
+        ],
+        "sessions": [
+            {
+                "session_id": "s1",
+                "session_title": "Demo",
+                "total_tokens": 830000,
+                "total_tokens_display": "0.83M",
+                "estimated_cost_display": "1.50",
+                "recorded_cost_display": "1.20",
+            }
+        ],
+        "raw_messages": [
+            {
+                "provider": "openai",
+                "model": "gpt-4.1-mini",
+                "total_tokens": 4567,
+                "total_tokens_display": "0.00M",
+                "input_tokens": 400000,
+                "input_tokens_display": "0.40M",
+                "output_tokens": 830000,
+                "output_tokens_display": "0.83M",
+                "estimated_cost_display": "1.50",
+                "recorded_cost_display": "1.20",
+            }
+        ],
+    }
+    app.overview_card_labels = {
+        "total_tokens": FakeLabel(),
+        "input_tokens": FakeLabel(),
+        "output_tokens": FakeLabel(),
+        "reasoning_tokens": FakeLabel(),
+        "estimated_cost_total": FakeLabel(),
+        "recorded_cost_total": FakeLabel(),
+    }
+    app.overview_table = FakeTree(["day", "total_tokens_display", "estimated_cost_total"])
+    app.treeviews = {
+        "models": FakeTree(["provider", "model", "total_tokens_display", "estimated_cost_display", "recorded_cost_display"]),
+        "days": FakeTree(["day", "total_tokens_display", "estimated_cost_display", "recorded_cost_display"]),
+        "sessions": FakeTree(["session_id", "session_title", "total_tokens_display", "estimated_cost_display", "recorded_cost_display"]),
+        "raw_messages": FakeTree([
+            "provider",
+            "model",
+            "total_tokens_display",
+            "input_tokens_display",
+            "output_tokens_display",
+            "estimated_cost_display",
+            "recorded_cost_display",
+        ]),
+    }
+    app._refresh_charts = lambda: []
+
+    app._populate_view()
+
+    assert app.overview_card_labels["total_tokens"].text == "total_tokens: 1.23M"
+    assert app.overview_card_labels["input_tokens"].text == "input_tokens: 0.40M"
+    assert app.overview_card_labels["output_tokens"].text == "output_tokens: 0.83M"
+    assert app.overview_card_labels["reasoning_tokens"].text == "reasoning_tokens: 0.00M"
+    assert app.overview_card_labels["estimated_cost_total"].text == "estimated_cost_total: 1.50"
+    assert app.overview_card_labels["recorded_cost_total"].text == "recorded_cost_total: 1.20"
+    assert app.overview_table.rows == [("2024-03-09", "1.23M", "1.50")]
+    assert app.treeviews["models"].rows == [
+        ("openai", "gpt-4.1-mini", "1.23M", "1.50", "1.20")
+    ]
+    assert app.treeviews["days"].rows == [("2024-03-09", "0.40M", "1.50", "1.20")]
+    assert app.treeviews["sessions"].rows == [("s1", "Demo", "0.83M", "1.50", "1.20")]
+    assert app.treeviews["raw_messages"].rows == [
+        ("openai", "gpt-4.1-mini", "0.00M", "0.40M", "0.83M", "1.50", "1.20")
+    ]
+
+
 def test_refresh_charts_isolates_single_chart_failure():
     calls = []
     app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
