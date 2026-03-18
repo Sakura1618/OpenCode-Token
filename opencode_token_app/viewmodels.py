@@ -1,7 +1,7 @@
 def _format_cost(value):
     if value is None:
         return ""
-    return f"{value:.2f}"
+    return f"${value:.2f} USD"
 
 
 def format_token_millions(value):
@@ -32,6 +32,8 @@ def build_overview_viewmodel(datasets):
     summary = dict(datasets["summary"])
     for field in ("total_tokens", "input_tokens", "output_tokens", "reasoning_tokens"):
         summary[f"{field}_display"] = format_token_millions(summary.get(field))
+    summary["estimated_cost_total_display"] = _format_cost(summary.get("estimated_cost_total"))
+    summary["recorded_cost_total_display"] = _format_cost(summary.get("recorded_cost_total"))
     return {
         "cards": summary,
         "daily_rows": _decorate_aggregate_rows(datasets.get("by_day", [])),

@@ -40,7 +40,7 @@ def _validate_pie_series(labels, values):
         raise ValueError("labels and values must be the same length")
 
 
-def show_empty_state(axis, title, message="No data"):
+def show_empty_state(axis, title, message="无数据"):
     axis.set_title(title)
     axis.text(0.5, 0.5, message, ha="center", va="center", transform=axis.transAxes)
     axis.set_xticks([])

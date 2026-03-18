@@ -7,6 +7,7 @@ import pytest
 from opencode_token_app import charts
 from opencode_token_app import gui as gui_module
 from opencode_token_app.gui import ChartRefreshError, OpenCodeTokenApp, default_db_path
+import opencode_token_gui
 from opencode_token_app.viewmodels import (
     build_application_viewmodels,
     build_overview_viewmodel,
@@ -55,8 +56,24 @@ def test_overview_viewmodel_adds_token_display_fields():
     assert vm["cards"]["input_tokens_display"] == "0.40M"
     assert vm["cards"]["output_tokens_display"] == "0.83M"
     assert vm["cards"]["reasoning_tokens_display"] == "0.00M"
+    assert vm["cards"]["estimated_cost_total_display"] == "$1.50 USD"
+    assert vm["cards"]["recorded_cost_total_display"] == "$1.20 USD"
     assert vm["daily_rows"][0]["total_tokens"] == 1234567
     assert vm["daily_rows"][0]["total_tokens_display"] == "1.23M"
+
+
+def test_overview_viewmodel_formats_zero_and_missing_cost_displays():
+    zero_vm = build_overview_viewmodel(
+        {"summary": {"estimated_cost_total": 0, "recorded_cost_total": 0}, "by_day": []}
+    )
+    blank_vm = build_overview_viewmodel(
+        {"summary": {"estimated_cost_total": None, "recorded_cost_total": None}, "by_day": []}
+    )
+
+    assert zero_vm["cards"]["estimated_cost_total_display"] == "$0.00 USD"
+    assert zero_vm["cards"]["recorded_cost_total_display"] == "$0.00 USD"
+    assert blank_vm["cards"]["estimated_cost_total_display"] == ""
+    assert blank_vm["cards"]["recorded_cost_total_display"] == ""
 
 
 def test_build_application_viewmodels_exposes_model_day_session_and_raw_rows():
@@ -71,15 +88,17 @@ def test_build_application_viewmodels_exposes_model_day_session_and_raw_rows():
     vm = build_application_viewmodels(datasets)
 
     assert vm["models"][0]["price_status_label"] == "已定价"
-    assert vm["models"][0]["estimated_cost_display"] == "1.50"
-    assert vm["models"][0]["recorded_cost_display"] == "1.20"
+    assert vm["models"][0]["estimated_cost_display"] == "$1.50 USD"
+    assert vm["models"][0]["recorded_cost_display"] == "$1.20 USD"
     assert vm["days"][0]["day"] == "2024-03-09"
     assert vm["days"][0]["message_count"] == 2
-    assert vm["days"][0]["estimated_cost_display"] == "1.50"
+    assert vm["days"][0]["estimated_cost_display"] == "$1.50 USD"
     assert vm["sessions"][0]["session_title"] == "Demo"
     assert vm["sessions"][0]["message_count"] == 2
-    assert vm["sessions"][0]["recorded_cost_display"] == "1.20"
+    assert vm["sessions"][0]["recorded_cost_display"] == "$1.20 USD"
     assert vm["raw_messages"][0]["model"] == "gpt-4.1-mini"
+    assert vm["raw_messages"][0]["estimated_cost_display"] == "$1.50 USD"
+    assert vm["raw_messages"][0]["recorded_cost_display"] == "$1.20 USD"
 
 
 def test_build_application_viewmodels_adds_display_fields_for_visible_token_columns():
@@ -168,9 +187,9 @@ def test_attach_canvas_returns_none_when_tk_canvas_unavailable(monkeypatch):
 
 
 def test_chart_helpers_no_op_when_figure_unavailable():
-    charts.plot_line_chart(None, title="Daily Tokens", labels=[], values=[])
-    charts.plot_horizontal_bar_chart(None, title="Top Models", labels=[], values=[])
-    charts.plot_pie_chart(None, title="Token Composition", labels=[], values=[])
+    charts.plot_line_chart(None, title="每日 token", labels=[], values=[])
+    charts.plot_horizontal_bar_chart(None, title="热门模型", labels=[], values=[])
+    charts.plot_pie_chart(None, title="token 构成", labels=[], values=[])
 
 
 @pytest.mark.skipif(charts.Figure is None, reason="matplotlib unavailable")
@@ -178,11 +197,11 @@ def test_line_chart_renders_empty_state_when_no_values():
     figure = charts.create_figure()
     assert figure is not None
 
-    charts.plot_line_chart(figure, title="Daily Tokens", labels=[], values=[])
+    charts.plot_line_chart(figure, title="每日 token", labels=[], values=[])
 
     axis = figure.axes[0]
-    assert axis.get_title() == "Daily Tokens"
-    assert axis.texts[0].get_text() == "No data"
+    assert axis.get_title() == "每日 token"
+    assert axis.texts[0].get_text() == "无数据"
 
 
 @pytest.mark.skipif(charts.Figure is None, reason="matplotlib unavailable")
@@ -212,15 +231,15 @@ def test_pie_chart_sets_labels_for_token_composition():
 
     charts.plot_pie_chart(
         figure,
-        title="Token Composition",
-        labels=["Input", "Output", "Reasoning"],
+        title="token 构成",
+        labels=["输入 token", "输出 token", "推理 token"],
         values=[40, 50, 10],
     )
 
     axis = figure.axes[0]
-    assert axis.get_title() == "Token Composition"
-    labels = [text.get_text() for text in axis.texts if text.get_text() in {"Input", "Output", "Reasoning"}]
-    assert labels == ["Input", "Output", "Reasoning"]
+    assert axis.get_title() == "token 构成"
+    labels = [text.get_text() for text in axis.texts if text.get_text() in {"输入 token", "输出 token", "推理 token"}]
+    assert labels == ["输入 token", "输出 token", "推理 token"]
 
 
 @pytest.mark.skipif(charts.Figure is None, reason="matplotlib unavailable")
@@ -230,14 +249,14 @@ def test_pie_chart_renders_empty_state_when_all_values_zero():
 
     charts.plot_pie_chart(
         figure,
-        title="Token Composition",
-        labels=["Input", "Output", "Reasoning"],
+        title="token 构成",
+        labels=["输入 token", "输出 token", "推理 token"],
         values=[0, 0, 0],
     )
 
     axis = figure.axes[0]
-    assert axis.get_title() == "Token Composition"
-    assert axis.texts[0].get_text() == "No data"
+    assert axis.get_title() == "token 构成"
+    assert axis.texts[0].get_text() == "无数据"
 
 
 @pytest.mark.skipif(charts.Figure is None, reason="matplotlib unavailable")
@@ -246,7 +265,7 @@ def test_line_chart_rejects_mismatched_labels_and_values():
     assert figure is not None
 
     with pytest.raises(ValueError, match="same length"):
-        charts.plot_line_chart(figure, title="Daily Tokens", labels=["2024-03-09"], values=[])
+        charts.plot_line_chart(figure, title="每日 token", labels=["2024-03-09"], values=[])
 
 
 @pytest.mark.skipif(charts.Figure is None, reason="matplotlib unavailable")
@@ -255,7 +274,7 @@ def test_pie_chart_rejects_mismatched_labels_and_values():
     assert figure is not None
 
     with pytest.raises(ValueError, match="same length"):
-        charts.plot_pie_chart(figure, title="Token Composition", labels=["Input"], values=[])
+        charts.plot_pie_chart(figure, title="token 构成", labels=["输入 token"], values=[])
 
 
 def test_populate_view_refreshes_tables_and_charts():
@@ -338,16 +357,16 @@ def test_populate_view_uses_token_display_fields_for_cards_and_tables():
                 "reasoning_tokens": 4567,
                 "reasoning_tokens_display": "0.00M",
                 "estimated_cost_total": "1.50",
-                "estimated_cost_total_display": "wrong-cost-display",
+                "estimated_cost_total_display": "$1.50 USD",
                 "recorded_cost_total": "1.20",
-                "recorded_cost_total_display": "wrong-recorded-display",
+                "recorded_cost_total_display": "$1.20 USD",
             },
             "daily_rows": [
                 {
                     "day": "2024-03-09",
                     "total_tokens": 1234567,
                     "total_tokens_display": "1.23M",
-                    "estimated_cost_total": "1.50",
+                    "estimated_cost_display": "$1.50 USD",
                 }
             ],
         },
@@ -357,8 +376,8 @@ def test_populate_view_uses_token_display_fields_for_cards_and_tables():
                 "model": "gpt-4.1-mini",
                 "total_tokens": 1234567,
                 "total_tokens_display": "1.23M",
-                "estimated_cost_display": "1.50",
-                "recorded_cost_display": "1.20",
+                "estimated_cost_display": "$1.50 USD",
+                "recorded_cost_display": "$1.20 USD",
             }
         ],
         "days": [
@@ -366,8 +385,8 @@ def test_populate_view_uses_token_display_fields_for_cards_and_tables():
                 "day": "2024-03-09",
                 "total_tokens": 400000,
                 "total_tokens_display": "0.40M",
-                "estimated_cost_display": "1.50",
-                "recorded_cost_display": "1.20",
+                "estimated_cost_display": "$1.50 USD",
+                "recorded_cost_display": "$1.20 USD",
             }
         ],
         "sessions": [
@@ -376,8 +395,8 @@ def test_populate_view_uses_token_display_fields_for_cards_and_tables():
                 "session_title": "Demo",
                 "total_tokens": 830000,
                 "total_tokens_display": "0.83M",
-                "estimated_cost_display": "1.50",
-                "recorded_cost_display": "1.20",
+                "estimated_cost_display": "$1.50 USD",
+                "recorded_cost_display": "$1.20 USD",
             }
         ],
         "raw_messages": [
@@ -390,8 +409,8 @@ def test_populate_view_uses_token_display_fields_for_cards_and_tables():
                 "input_tokens_display": "0.40M",
                 "output_tokens": 830000,
                 "output_tokens_display": "0.83M",
-                "estimated_cost_display": "1.50",
-                "recorded_cost_display": "1.20",
+                "estimated_cost_display": "$1.50 USD",
+                "recorded_cost_display": "$1.20 USD",
             }
         ],
     }
@@ -403,7 +422,7 @@ def test_populate_view_uses_token_display_fields_for_cards_and_tables():
         "estimated_cost_total": FakeLabel(),
         "recorded_cost_total": FakeLabel(),
     }
-    app.overview_table = FakeTree(["day", "total_tokens_display", "estimated_cost_total"])
+    app.overview_table = FakeTree(["day", "total_tokens_display", "estimated_cost_display"])
     app.treeviews = {
         "models": FakeTree(["provider", "model", "total_tokens_display", "estimated_cost_display", "recorded_cost_display"]),
         "days": FakeTree(["day", "total_tokens_display", "estimated_cost_display", "recorded_cost_display"]),
@@ -422,20 +441,20 @@ def test_populate_view_uses_token_display_fields_for_cards_and_tables():
 
     app._populate_view()
 
-    assert app.overview_card_labels["total_tokens"].text == "total_tokens: 1.23M"
-    assert app.overview_card_labels["input_tokens"].text == "input_tokens: 0.40M"
-    assert app.overview_card_labels["output_tokens"].text == "output_tokens: 0.83M"
-    assert app.overview_card_labels["reasoning_tokens"].text == "reasoning_tokens: 0.00M"
-    assert app.overview_card_labels["estimated_cost_total"].text == "estimated_cost_total: 1.50"
-    assert app.overview_card_labels["recorded_cost_total"].text == "recorded_cost_total: 1.20"
-    assert app.overview_table.rows == [("2024-03-09", "1.23M", "1.50")]
+    assert app.overview_card_labels["total_tokens"].text == "总 token: 1.23M"
+    assert app.overview_card_labels["input_tokens"].text == "输入 token: 0.40M"
+    assert app.overview_card_labels["output_tokens"].text == "输出 token: 0.83M"
+    assert app.overview_card_labels["reasoning_tokens"].text == "推理 token: 0.00M"
+    assert app.overview_card_labels["estimated_cost_total"].text == "预估价格（美元）: $1.50 USD"
+    assert app.overview_card_labels["recorded_cost_total"].text == "已记录价格（美元）: $1.20 USD"
+    assert app.overview_table.rows == [("2024-03-09", "1.23M", "$1.50 USD")]
     assert app.treeviews["models"].rows == [
-        ("openai", "gpt-4.1-mini", "1.23M", "1.50", "1.20")
+        ("openai", "gpt-4.1-mini", "1.23M", "$1.50 USD", "$1.20 USD")
     ]
-    assert app.treeviews["days"].rows == [("2024-03-09", "0.40M", "1.50", "1.20")]
-    assert app.treeviews["sessions"].rows == [("s1", "Demo", "0.83M", "1.50", "1.20")]
+    assert app.treeviews["days"].rows == [("2024-03-09", "0.40M", "$1.50 USD", "$1.20 USD")]
+    assert app.treeviews["sessions"].rows == [("s1", "Demo", "0.83M", "$1.50 USD", "$1.20 USD")]
     assert app.treeviews["raw_messages"].rows == [
-        ("openai", "gpt-4.1-mini", "0.00M", "0.40M", "0.83M", "1.50", "1.20")
+        ("openai", "gpt-4.1-mini", "0.00M", "0.40M", "0.83M", "$1.50 USD", "$1.20 USD")
     ]
 
 
@@ -474,7 +493,77 @@ def test_refresh_charts_aggregates_multiple_warnings():
     warnings = app._refresh_charts()
 
     assert warnings == ["boom", "missing"]
-    assert calls == ["Loaded with chart warnings: boom; missing"]
+    assert calls == ["已加载，但图表有警告：图表刷新失败：boom; 图表刷新失败：missing"]
+
+
+def test_create_treeview_localizes_column_headings(monkeypatch):
+    headings = {}
+
+    class FakeTreeview:
+        def __init__(self, parent, columns, show, height):
+            self.columns = tuple(columns)
+
+        def heading(self, column, text):
+            headings[column] = text
+
+        def column(self, column, width, stretch):
+            pass
+
+        def pack(self, **kwargs):
+            pass
+
+    monkeypatch.setattr(gui_module.ttk, "Treeview", FakeTreeview)
+    app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
+
+    tree = app._create_treeview(object(), [
+        "day",
+        "provider",
+        "model",
+        "role",
+        "time_created_text",
+        "session_id",
+        "session_title",
+        "message_count",
+        "total_tokens_display",
+        "input_tokens_display",
+        "output_tokens_display",
+        "estimated_cost_display",
+        "recorded_cost_display",
+        "price_status_label",
+    ])
+
+    assert tree.columns == (
+        "day",
+        "provider",
+        "model",
+        "role",
+        "time_created_text",
+        "session_id",
+        "session_title",
+        "message_count",
+        "total_tokens_display",
+        "input_tokens_display",
+        "output_tokens_display",
+        "estimated_cost_display",
+        "recorded_cost_display",
+        "price_status_label",
+    )
+    assert headings == {
+        "day": "日期",
+        "provider": "提供方",
+        "model": "模型",
+        "role": "角色",
+        "time_created_text": "时间",
+        "session_id": "会话 ID",
+        "session_title": "会话标题",
+        "message_count": "消息数",
+        "total_tokens_display": "总 token",
+        "input_tokens_display": "输入 token",
+        "output_tokens_display": "输出 token",
+        "estimated_cost_display": "预估价格（美元）",
+        "recorded_cost_display": "已记录价格（美元）",
+        "price_status_label": "定价状态",
+    }
 
 
 def test_model_chart_rows_are_sorted_descending_and_trimmed_to_top_10():
@@ -528,7 +617,7 @@ def test_overview_composition_chart_uses_input_output_reasoning_cards():
         {"input_tokens": 40, "output_tokens": 50, "reasoning_tokens": 10}
     )
 
-    assert labels == ["Input", "Output", "Reasoning"]
+    assert labels == ["输入 token", "输出 token", "推理 token"]
     assert values == [40, 50, 10]
 
 
@@ -573,26 +662,26 @@ def test_refresh_overview_chart_methods_scale_tokens_to_millions_and_use_m_label
         (
             "line",
             {
-                "title": "Daily Tokens",
+                "title": "每日 token",
                 "labels": ["2024-03-09", "2024-03-10"],
                 "values": [2.0, 2.5],
-                "ylabel": "Tokens (M)",
+                "ylabel": "token（M）",
             },
         ),
         (
             "bar",
             {
-                "title": "Top Models",
+                "title": "热门模型",
                 "labels": ["openai/m2", "openai/m1"],
                 "values": [3.0, 1.0],
-                "xlabel": "Tokens (M)",
+                "xlabel": "token（M）",
             },
         ),
         (
             "pie",
             {
-                "title": "Token Composition (M)",
-                "labels": ["Input", "Output", "Reasoning"],
+                "title": "token 构成（M）",
+                "labels": ["输入 token", "输出 token", "推理 token"],
                 "values": [0.4, 0.5, 0.1],
             },
         ),
@@ -644,28 +733,28 @@ def test_refresh_analysis_charts_scale_tokens_to_millions_and_use_m_labels(monke
         (
             "bar",
             {
-                "title": "Top Models",
+                "title": "热门模型",
                 "labels": ["openai/m2", "openai/m1"],
                 "values": [3.0, 1.0],
-                "xlabel": "Tokens (M)",
+                "xlabel": "token（M）",
             },
         ),
         (
             "line",
             {
-                "title": "Daily Tokens",
+                "title": "每日 token",
                 "labels": ["2024-03-09", "2024-03-10"],
                 "values": [2.0, 2.5],
-                "ylabel": "Tokens (M)",
+                "ylabel": "token（M）",
             },
         ),
         (
             "bar",
             {
-                "title": "Top Sessions",
+                "title": "热门会话",
                 "labels": ["Demo", "s1"],
                 "values": [2.0, 0.5],
-                "xlabel": "Tokens (M)",
+                "xlabel": "token（M）",
             },
         ),
     ]
@@ -700,4 +789,48 @@ def test_refresh_charts_isolates_chart_data_preparation_failures(monkeypatch):
     assert warnings == ["overview_daily: 'bad day'", "days: 'bad day'"]
     assert "bar" in calls
     assert "pie" in calls
-    assert any(call[0] == "status" and "overview_daily: 'bad day'" in call[1] for call in calls if isinstance(call, tuple))
+    assert any(call[0] == "status" and "已加载，但图表有警告：图表刷新失败：'bad day'" in call[1] for call in calls if isinstance(call, tuple))
+
+
+def test_browse_db_localizes_file_dialog(monkeypatch):
+    captured = {}
+    app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
+    app.db_path_var = SimpleNamespace(set=lambda value: captured.setdefault("db_path", value))
+    app.export_dir_var = SimpleNamespace(set=lambda value: captured.setdefault("export_dir", value))
+
+    def fake_askopenfilename(**kwargs):
+        captured["dialog"] = kwargs
+        return r"C:\demo\opencode.db"
+
+    monkeypatch.setattr(gui_module.filedialog, "askopenfilename", fake_askopenfilename)
+
+    app.browse_db()
+
+    assert captured["dialog"] == {
+        "title": "选择 opencode.db",
+        "filetypes": [("SQLite 数据库", "*.db"), ("所有文件", "*")],
+    }
+    assert captured["db_path"] == r"C:\demo\opencode.db"
+    assert captured["export_dir"].endswith("token_export")
+
+
+def test_main_sets_localized_window_title(monkeypatch):
+    calls = []
+
+    class FakeRoot:
+        def title(self, value):
+            calls.append(("title", value))
+
+        def geometry(self, value):
+            calls.append(("geometry", value))
+
+        def mainloop(self):
+            calls.append(("mainloop", None))
+
+    fake_root = FakeRoot()
+    monkeypatch.setattr(opencode_token_gui.tk, "Tk", lambda: fake_root)
+    monkeypatch.setattr(opencode_token_gui, "OpenCodeTokenApp", lambda root, entry_path=None: calls.append(("app", root, entry_path)))
+
+    opencode_token_gui.main()
+
+    assert calls[0] == ("title", "OpenCode Token 图形界面")

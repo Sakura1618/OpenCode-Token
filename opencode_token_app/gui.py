@@ -16,12 +16,54 @@ from opencode_token_app.pricing import price_loaded_usage
 from opencode_token_app.viewmodels import build_application_viewmodels
 
 
+LABEL_TEXT = {
+    "db_path": "数据库路径",
+    "browse": "浏览",
+    "reload": "重新加载",
+    "export_csv": "导出 CSV",
+    "export_dir": "导出目录",
+    "filter_day": "日期",
+    "filter_provider": "提供方",
+    "filter_model": "模型",
+    "chart": "图表",
+    "daily": "每日",
+    "models": "模型",
+    "composition": "构成",
+    "day": "日期",
+    "provider": "提供方",
+    "model": "模型",
+    "role": "角色",
+    "time_created_text": "时间",
+    "session_id": "会话 ID",
+    "session_title": "会话标题",
+    "message_count": "消息数",
+    "total_tokens": "总 token",
+    "input_tokens": "输入 token",
+    "output_tokens": "输出 token",
+    "reasoning_tokens": "推理 token",
+    "total_tokens_display": "总 token",
+    "input_tokens_display": "输入 token",
+    "output_tokens_display": "输出 token",
+    "estimated_cost_total": "预估价格（美元）",
+    "estimated_cost_total_display": "预估价格（美元）",
+    "recorded_cost_total": "已记录价格（美元）",
+    "recorded_cost_total_display": "已记录价格（美元）",
+    "estimated_cost_display": "预估价格（美元）",
+    "recorded_cost_display": "已记录价格（美元）",
+    "price_status_label": "定价状态",
+}
+
+
 def default_db_path() -> Path:
     return Path(os.environ.get("USERPROFILE", "~")).expanduser() / ".local" / "share" / "opencode" / "opencode.db"
 
 
 class ChartRefreshError(RuntimeError):
     pass
+
+
+def ui_text(key: str) -> str:
+    return LABEL_TEXT.get(key) or key
 
 
 def scale_tokens_to_millions(values):
@@ -64,7 +106,7 @@ def build_top_session_chart_data(rows):
 
 
 def build_overview_composition_chart_data(cards):
-    return ["Input", "Output", "Reasoning"], [
+    return ["输入 token", "输出 token", "推理 token"], [
         cards.get("input_tokens", 0) or 0,
         cards.get("output_tokens", 0) or 0,
         cards.get("reasoning_tokens", 0) or 0,
@@ -78,7 +120,7 @@ class OpenCodeTokenApp(ttk.Frame):
         self.entry_path = entry_path
         self.db_path_var = tk.StringVar(value=str(default_db_path()))
         self.export_dir_var = tk.StringVar(value=str(default_db_path().parent / "token_export"))
-        self.status_var = tk.StringVar(value="Ready")
+        self.status_var = tk.StringVar(value="就绪")
         self.viewmodels = None
         self.treeviews = {}
         self.charts = {}
@@ -89,12 +131,12 @@ class OpenCodeTokenApp(ttk.Frame):
     def _build_header(self):
         header = ttk.Frame(self)
         header.pack(fill="x", padx=8, pady=8)
-        ttk.Label(header, text="DB Path").grid(row=0, column=0, sticky="w")
+        ttk.Label(header, text=ui_text("db_path")).grid(row=0, column=0, sticky="w")
         ttk.Entry(header, textvariable=self.db_path_var, width=80).grid(row=0, column=1, sticky="ew", padx=6)
-        ttk.Button(header, text="Browse", command=self.browse_db).grid(row=0, column=2, padx=4)
-        ttk.Button(header, text="Reload", command=self.load_current_db).grid(row=0, column=3, padx=4)
-        ttk.Button(header, text="Export CSV", command=self.export_current_csvs).grid(row=0, column=4, padx=4)
-        ttk.Label(header, text="Export Dir").grid(row=1, column=0, sticky="w")
+        ttk.Button(header, text=ui_text("browse"), command=self.browse_db).grid(row=0, column=2, padx=4)
+        ttk.Button(header, text=ui_text("reload"), command=self.load_current_db).grid(row=0, column=3, padx=4)
+        ttk.Button(header, text=ui_text("export_csv"), command=self.export_current_csvs).grid(row=0, column=4, padx=4)
+        ttk.Label(header, text=ui_text("export_dir")).grid(row=1, column=0, sticky="w")
         ttk.Label(header, textvariable=self.export_dir_var).grid(row=1, column=1, columnspan=4, sticky="w", padx=6)
         ttk.Label(header, textvariable=self.status_var).grid(row=2, column=0, columnspan=5, sticky="w")
         header.columnconfigure(1, weight=1)
@@ -119,14 +161,14 @@ class OpenCodeTokenApp(ttk.Frame):
         self.overview_cards.pack(fill="x", padx=8, pady=8)
         self.overview_card_labels = {}
         for idx, key in enumerate(["total_tokens", "input_tokens", "output_tokens", "reasoning_tokens", "estimated_cost_total", "recorded_cost_total"]):
-            label = ttk.Label(self.overview_cards, text=f"{key}: -")
+            label = ttk.Label(self.overview_cards, text=f"{ui_text(key)}: -")
             label.grid(row=0, column=idx, padx=4, sticky="w")
             self.overview_card_labels[key] = label
 
         self.overview_chart_area = ttk.Frame(frame)
         self.overview_chart_area.pack(fill="both", expand=False, padx=8, pady=8)
         for name in ["daily", "models", "composition"]:
-            chart_frame = ttk.LabelFrame(self.overview_chart_area, text=name)
+            chart_frame = ttk.LabelFrame(self.overview_chart_area, text=ui_text(name))
             chart_frame.pack(side="left", fill="both", expand=True, padx=4)
             figure = create_figure()
             canvas = attach_canvas(figure, chart_frame)
@@ -134,11 +176,11 @@ class OpenCodeTokenApp(ttk.Frame):
             if canvas is not None:
                 canvas.get_tk_widget().pack(fill="both", expand=True)
 
-        self.overview_table = self._create_treeview(frame, ["day", "total_tokens_display", "estimated_cost_total"])
+        self.overview_table = self._create_treeview(frame, ["day", "total_tokens_display", "estimated_cost_display"])
 
     def _build_analysis_tab(self, title, key):
         frame = self.tabs[title]
-        chart_frame = ttk.LabelFrame(frame, text="chart")
+        chart_frame = ttk.LabelFrame(frame, text=ui_text("chart"))
         chart_frame.pack(fill="both", expand=False, padx=8, pady=8)
         figure = create_figure()
         canvas = attach_canvas(figure, chart_frame)
@@ -157,11 +199,11 @@ class OpenCodeTokenApp(ttk.Frame):
         frame = self.tabs["明细数据"]
         filters = ttk.Frame(frame)
         filters.pack(fill="x", padx=8, pady=8)
-        ttk.Label(filters, text="Day").grid(row=0, column=0, padx=4)
+        ttk.Label(filters, text=ui_text("filter_day")).grid(row=0, column=0, padx=4)
         ttk.Entry(filters).grid(row=0, column=1, padx=4)
-        ttk.Label(filters, text="Provider").grid(row=0, column=2, padx=4)
+        ttk.Label(filters, text=ui_text("filter_provider")).grid(row=0, column=2, padx=4)
         ttk.Entry(filters).grid(row=0, column=3, padx=4)
-        ttk.Label(filters, text="Model").grid(row=0, column=4, padx=4)
+        ttk.Label(filters, text=ui_text("filter_model")).grid(row=0, column=4, padx=4)
         ttk.Entry(filters).grid(row=0, column=5, padx=4)
         columns = ["provider", "model", "role", "time_created_text", "total_tokens_display", "input_tokens_display", "output_tokens_display", "estimated_cost_display", "recorded_cost_display", "price_status_label"]
         self.treeviews["raw_messages"] = self._create_treeview(frame, columns)
@@ -169,13 +211,16 @@ class OpenCodeTokenApp(ttk.Frame):
     def _create_treeview(self, parent, columns):
         tree = ttk.Treeview(parent, columns=columns, show="headings", height=8)
         for column in columns:
-            tree.heading(column, text=column)
+            tree.heading(column, text=ui_text(column))
             tree.column(column, width=120, stretch=True)
         tree.pack(fill="both", expand=True, padx=8, pady=8)
         return tree
 
     def browse_db(self):
-        selected = filedialog.askopenfilename(title="Select opencode.db", filetypes=[("SQLite DB", "*.db"), ("All Files", "*")])
+        selected = filedialog.askopenfilename(
+            title="选择 opencode.db",
+            filetypes=[("SQLite 数据库", "*.db"), ("所有文件", "*")],
+        )
         if selected:
             self.db_path_var.set(selected)
             self.export_dir_var.set(str(Path(selected).resolve().parent / "token_export"))
@@ -184,7 +229,7 @@ class OpenCodeTokenApp(ttk.Frame):
         db_path = Path(self.db_path_var.get()).expanduser()
         self.export_dir_var.set(str(db_path.resolve().parent / "token_export"))
         if not db_path.exists():
-            self.status_var.set("DB not found; choose a file manually.")
+            self.status_var.set("未找到数据库；请手动选择文件。")
             return
         try:
             datasets = load_usage_from_db(db_path)
@@ -192,24 +237,20 @@ class OpenCodeTokenApp(ttk.Frame):
             self.viewmodels = build_application_viewmodels(datasets)
             warnings = self._populate_view()
             if not warnings:
-                self.status_var.set("Loaded")
+                self.status_var.set("已加载")
         except Exception as exc:  # pragma: no cover
-            self.status_var.set(f"Load failed: {exc}")
-            messagebox.showerror("Load failed", str(exc))
+            self.status_var.set(f"加载失败：{exc}")
+            messagebox.showerror("加载失败", f"加载失败：{exc}")
 
     def _populate_view(self):
         viewmodels = self.viewmodels
         if viewmodels is None:
             return []
         overview = viewmodels["overview"]
-        token_card_keys = {"total_tokens", "input_tokens", "output_tokens", "reasoning_tokens"}
         for key, label in self.overview_card_labels.items():
-            if key in token_card_keys:
-                display_key = f"{key}_display"
-                value = overview["cards"].get(display_key, overview["cards"].get(key, ""))
-            else:
-                value = overview["cards"].get(key, "")
-            label.configure(text=f"{key}: {value}")
+            display_key = f"{key}_display"
+            value = overview["cards"].get(display_key, overview["cards"].get(key, ""))
+            label.configure(text=f"{ui_text(key)}: {value}")
         self._fill_tree(self.overview_table, overview["daily_rows"])
         self._fill_tree(self.treeviews["models"], viewmodels["models"])
         self._fill_tree(self.treeviews["days"], viewmodels["days"])
@@ -238,7 +279,14 @@ class OpenCodeTokenApp(ttk.Frame):
 
     def _set_chart_warning_status(self, warnings):
         if warnings:
-            self.status_var.set(f"Loaded with chart warnings: {'; '.join(warnings)}")
+            localized = [f"图表刷新失败：{self._user_chart_warning(warning)}" for warning in warnings]
+            self.status_var.set(f"已加载，但图表有警告：{'; '.join(localized)}")
+
+    def _user_chart_warning(self, warning):
+        prefix, _, remainder = warning.partition(": ")
+        if prefix in {"overview_daily", "overview_models", "overview_composition", "models", "days", "sessions"} and remainder:
+            return remainder
+        return warning
 
     def _refresh_charts(self):
         warnings = []
@@ -267,10 +315,10 @@ class OpenCodeTokenApp(ttk.Frame):
             self._draw_chart(
                 "overview_daily",
                 plot_line_chart,
-                title="Daily Tokens",
+                title="每日 token",
                 labels=day_labels,
                 values=scale_tokens_to_millions(day_values),
-                ylabel="Tokens (M)",
+                ylabel="token（M）",
             )
         except ChartRefreshError:
             raise
@@ -286,10 +334,10 @@ class OpenCodeTokenApp(ttk.Frame):
             self._draw_chart(
                 "overview_models",
                 plot_horizontal_bar_chart,
-                title="Top Models",
+                title="热门模型",
                 labels=model_labels,
                 values=scale_tokens_to_millions(model_values),
-                xlabel="Tokens (M)",
+                xlabel="token（M）",
             )
         except ChartRefreshError:
             raise
@@ -308,7 +356,7 @@ class OpenCodeTokenApp(ttk.Frame):
             self._draw_chart(
                 "overview_composition",
                 plot_pie_chart,
-                title="Token Composition (M)",
+                title="token 构成（M）",
                 labels=composition_labels,
                 values=scale_tokens_to_millions(composition_values),
             )
@@ -326,10 +374,10 @@ class OpenCodeTokenApp(ttk.Frame):
             self._draw_chart(
                 "models",
                 plot_horizontal_bar_chart,
-                title="Top Models",
+                title="热门模型",
                 labels=labels,
                 values=scale_tokens_to_millions(values),
-                xlabel="Tokens (M)",
+                xlabel="token（M）",
             )
         except ChartRefreshError:
             raise
@@ -345,10 +393,10 @@ class OpenCodeTokenApp(ttk.Frame):
             self._draw_chart(
                 "days",
                 plot_line_chart,
-                title="Daily Tokens",
+                title="每日 token",
                 labels=labels,
                 values=scale_tokens_to_millions(values),
-                ylabel="Tokens (M)",
+                ylabel="token（M）",
             )
         except ChartRefreshError:
             raise
@@ -364,10 +412,10 @@ class OpenCodeTokenApp(ttk.Frame):
             self._draw_chart(
                 "sessions",
                 plot_horizontal_bar_chart,
-                title="Top Sessions",
+                title="热门会话",
                 labels=labels,
                 values=scale_tokens_to_millions(values),
-                xlabel="Tokens (M)",
+                xlabel="token（M）",
             )
         except ChartRefreshError:
             raise
@@ -384,14 +432,14 @@ class OpenCodeTokenApp(ttk.Frame):
     def export_current_csvs(self):
         db_path = Path(self.db_path_var.get()).expanduser()
         if not db_path.exists():
-            self.status_var.set("DB not found; cannot export.")
+            self.status_var.set("未找到数据库；无法导出。")
             return
         try:
             datasets = load_usage_from_db(db_path)
             datasets = price_loaded_usage(datasets, entry_path=self.entry_path)
             out_dir = export_usage_csvs(db_path.resolve().parent / "token_export", datasets)
             self.export_dir_var.set(str(out_dir))
-            self.status_var.set(f"Exported to {out_dir}")
+            self.status_var.set(f"已导出到 {out_dir}")
         except Exception as exc:  # pragma: no cover
-            self.status_var.set(f"Export failed: {exc}")
-            messagebox.showerror("Export failed", str(exc))
+            self.status_var.set(f"导出失败：{exc}")
+            messagebox.showerror("导出失败", f"导出失败：{exc}")
