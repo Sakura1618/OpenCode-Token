@@ -180,6 +180,27 @@ def test_create_figure_returns_none_when_matplotlib_unavailable(monkeypatch):
     assert charts.create_figure() is None
 
 
+def test_create_figure_configures_cjk_font_fallback(monkeypatch):
+    class FakeFigure:
+        def __init__(self, figsize, dpi):
+            self.figsize = figsize
+            self.dpi = dpi
+
+    fake_matplotlib = SimpleNamespace(rcParams={})
+
+    monkeypatch.setattr(charts, "matplotlib", fake_matplotlib)
+    monkeypatch.setattr(charts, "Figure", FakeFigure)
+
+    figure = charts.create_figure(width=6, height=4)
+
+    assert isinstance(figure, FakeFigure)
+    assert figure.figsize == (6, 4)
+    assert figure.dpi == 100
+    assert fake_matplotlib.rcParams["font.family"] == ["sans-serif"]
+    assert fake_matplotlib.rcParams["font.sans-serif"] == charts.CJK_FONT_CANDIDATES
+    assert fake_matplotlib.rcParams["axes.unicode_minus"] is False
+
+
 def test_attach_canvas_returns_none_when_tk_canvas_unavailable(monkeypatch):
     monkeypatch.setattr(charts, "FigureCanvasTkAgg", None)
 
@@ -463,6 +484,7 @@ def test_refresh_charts_isolates_single_chart_failure():
     app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
     app.status_var = SimpleNamespace(set=lambda value: calls.append(("status", value)))
     app._refresh_overview_daily_chart = lambda: (_ for _ in ()).throw(ChartRefreshError("boom"))
+    app._refresh_overview_peak_days_chart = lambda: calls.append("overview_peak_days")
     app._refresh_overview_models_chart = lambda: calls.append("overview_models")
     app._refresh_overview_composition_chart = lambda: calls.append("overview_composition")
     app._refresh_models_chart = lambda: calls.append("models")
@@ -471,7 +493,7 @@ def test_refresh_charts_isolates_single_chart_failure():
 
     app._refresh_charts()
 
-    assert "overview_models" in calls
+    assert "overview_peak_days" in calls
     assert "overview_composition" in calls
     assert "models" in calls
     assert "days" in calls
@@ -484,6 +506,7 @@ def test_refresh_charts_aggregates_multiple_warnings():
     app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
     app.status_var = SimpleNamespace(set=lambda value: calls.append(value))
     app._refresh_overview_daily_chart = lambda: (_ for _ in ()).throw(ChartRefreshError("boom"))
+    app._refresh_overview_peak_days_chart = lambda: None
     app._refresh_overview_models_chart = lambda: None
     app._refresh_overview_composition_chart = lambda: None
     app._refresh_models_chart = lambda: (_ for _ in ()).throw(ChartRefreshError("missing"))
@@ -608,8 +631,100 @@ def test_day_chart_rows_are_sorted_ascending():
         ]
     )
 
-    assert labels == ["2024-03-09", "2024-03-10"]
+    assert labels == ["03/09", "03/10"]
     assert values == [10, 20]
+
+
+def test_day_chart_rows_sort_valid_non_zero_padded_days_before_malformed_labels():
+    labels, values = gui_module.build_day_chart_data(
+        [
+            {"day": "2024-3-10", "total_tokens": 20},
+            {"day": "bad-day", "total_tokens": 99},
+            {"day": "2024-3-9", "total_tokens": 10},
+        ]
+    )
+
+    assert labels == ["03/09", "03/10", "bad-day"]
+    assert values == [10, 20, 99]
+
+
+@pytest.mark.parametrize(
+    ("day", "expected"),
+    [
+        ("2024-03-09", "03/09"),
+        ("2024-12-31", "12/31"),
+        ("2024-99-99", "2024-99-99"),
+        ("2024/03/09", "2024/03/09"),
+        ("bad", "bad"),
+        ("", ""),
+    ],
+)
+def test_format_day_label(day, expected):
+    assert gui_module.format_day_label(day) == expected
+
+
+def test_build_recent_day_chart_data_uses_latest_seven_days_sorted_ascending_and_formats_labels():
+    labels, values = gui_module.build_recent_day_chart_data(
+        [
+            {"day": "2024-03-08", "total_tokens": 80},
+            {"day": "2024-03-01", "total_tokens": 10},
+            {"day": "2024-03-05", "total_tokens": 50},
+            {"day": "2024-03-03", "total_tokens": 30},
+            {"day": "2024-03-07", "total_tokens": 70},
+            {"day": "2024-03-02", "total_tokens": 20},
+            {"day": "2024-03-06", "total_tokens": 60},
+            {"day": "2024-03-04", "total_tokens": 40},
+        ]
+    )
+
+    assert labels == ["03/02", "03/03", "03/04", "03/05", "03/06", "03/07", "03/08"]
+    assert values == [20, 30, 40, 50, 60, 70, 80]
+
+
+def test_build_recent_day_chart_data_uses_latest_seven_calendar_days_and_fills_missing_days():
+    labels, values = gui_module.build_recent_day_chart_data(
+        [
+            {"day": "2024-03-08", "total_tokens": 80},
+            {"day": "2024-03-06", "total_tokens": 60},
+            {"day": "2024-03-03", "total_tokens": 30},
+            {"day": "2024-03-02", "total_tokens": 20},
+            {"day": "bad-day", "total_tokens": 999},
+        ]
+    )
+
+    assert labels == ["03/02", "03/03", "03/04", "03/05", "03/06", "03/07", "03/08"]
+    assert values == [20, 30, 0, 0, 60, 0, 80]
+
+
+def test_build_peak_day_chart_data_uses_top_seven_days_with_day_desc_tiebreaker_and_formats_labels():
+    labels, values = gui_module.build_peak_day_chart_data(
+        [
+            {"day": "2024-03-01", "total_tokens": 100},
+            {"day": "2024-03-02", "total_tokens": 100},
+            {"day": "2024-03-03", "total_tokens": 90},
+            {"day": "2024-03-04", "total_tokens": 80},
+            {"day": "2024-03-05", "total_tokens": 70},
+            {"day": "2024-03-06", "total_tokens": 60},
+            {"day": "2024-03-07", "total_tokens": 50},
+            {"day": "2024-03-08", "total_tokens": 40},
+        ]
+    )
+
+    assert labels == ["03/02", "03/01", "03/03", "03/04", "03/05", "03/06", "03/07"]
+    assert values == [100, 100, 90, 80, 70, 60, 50]
+
+
+def test_build_peak_day_chart_data_uses_month_day_only_even_for_cross_year_duplicates():
+    labels, values = gui_module.build_peak_day_chart_data(
+        [
+            {"day": "2025-03-02", "total_tokens": 300},
+            {"day": "2024-03-02", "total_tokens": 250},
+            {"day": "2024-03-01", "total_tokens": 200},
+        ]
+    )
+
+    assert labels == ["03/02", "03/02", "03/01"]
+    assert values == [300, 250, 200]
 
 
 def test_overview_composition_chart_uses_input_output_reasoning_cards():
@@ -625,7 +740,7 @@ def test_scale_tokens_to_millions_handles_bad_inputs_and_scales_numbers():
     assert gui_module.scale_tokens_to_millions([2_000_000, None, "bad", 500_000]) == [2.0, 0.0, 0.0, 0.5]
 
 
-def test_refresh_overview_chart_methods_scale_tokens_to_millions_and_use_m_labels(monkeypatch):
+def test_refresh_overview_chart_methods_scale_tokens_to_millions_and_use_expected_labels(monkeypatch):
     calls = []
     app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
     app.viewmodels = {
@@ -634,6 +749,13 @@ def test_refresh_overview_chart_methods_scale_tokens_to_millions_and_use_m_label
             "daily_rows": [
                 {"day": "2024-03-10", "total_tokens": 2_500_000},
                 {"day": "2024-03-09", "total_tokens": 2_000_000},
+                {"day": "2024-03-08", "total_tokens": 1_500_000},
+                {"day": "2024-03-06", "total_tokens": 500_000},
+                {"day": "2024-03-05", "total_tokens": 2_200_000},
+                {"day": "2024-03-04", "total_tokens": 1_000_000},
+                {"day": "2024-03-03", "total_tokens": 2_400_000},
+                {"day": "2024-03-02", "total_tokens": 3_000_000},
+                {"day": "2023-03-07", "total_tokens": 2_700_000},
             ],
         },
         "models": [
@@ -643,6 +765,7 @@ def test_refresh_overview_chart_methods_scale_tokens_to_millions_and_use_m_label
     }
     app.charts = {
         "overview_daily": {"figure": object(), "canvas": None},
+        "overview_peak_days": {"figure": object(), "canvas": None},
         "overview_models": {"figure": object(), "canvas": None},
         "overview_composition": {"figure": object(), "canvas": None},
     }
@@ -655,6 +778,7 @@ def test_refresh_overview_chart_methods_scale_tokens_to_millions_and_use_m_label
     monkeypatch.setattr(gui_module, "plot_pie_chart", record("pie"))
 
     app._refresh_overview_daily_chart()
+    app._refresh_overview_peak_days_chart()
     app._refresh_overview_models_chart()
     app._refresh_overview_composition_chart()
 
@@ -663,9 +787,18 @@ def test_refresh_overview_chart_methods_scale_tokens_to_millions_and_use_m_label
             "line",
             {
                 "title": "每日 token",
-                "labels": ["2024-03-09", "2024-03-10"],
-                "values": [2.0, 2.5],
+                "labels": ["03/04", "03/05", "03/06", "03/07", "03/08", "03/09", "03/10"],
+                "values": [1.0, 2.2, 0.5, 0.0, 1.5, 2.0, 2.5],
                 "ylabel": "token（M）",
+            },
+        ),
+        (
+            "bar",
+            {
+                "title": "最高 token 七天",
+                "labels": ["03/02", "03/07", "03/10", "03/03", "03/05", "03/09", "03/08"],
+                "values": [3.0, 2.7, 2.5, 2.4, 2.2, 2.0, 1.5],
+                "xlabel": "token（M）",
             },
         ),
         (
@@ -743,7 +876,7 @@ def test_refresh_analysis_charts_scale_tokens_to_millions_and_use_m_labels(monke
             "line",
             {
                 "title": "每日 token",
-                "labels": ["2024-03-09", "2024-03-10"],
+                "labels": ["03/09", "03/10"],
                 "values": [2.0, 2.5],
                 "ylabel": "token（M）",
             },
@@ -758,9 +891,11 @@ def test_refresh_analysis_charts_scale_tokens_to_millions_and_use_m_labels(monke
             },
         ),
     ]
+    assert calls[1][1]["labels"] == ["03/09", "03/10"]
+    assert calls[1][1]["title"] == "每日 token"
 
 
-def test_refresh_charts_isolates_chart_data_preparation_failures(monkeypatch):
+def test_refresh_charts_isolates_overview_daily_data_preparation_failures(monkeypatch):
     calls = []
     app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
     app.status_var = SimpleNamespace(set=lambda value: calls.append(("status", value)))
@@ -772,6 +907,41 @@ def test_refresh_charts_isolates_chart_data_preparation_failures(monkeypatch):
     }
     app.charts = {
         "overview_daily": {"figure": object(), "canvas": None},
+        "overview_peak_days": {"figure": object(), "canvas": None},
+        "overview_models": {"figure": object(), "canvas": None},
+        "overview_composition": {"figure": object(), "canvas": None},
+        "models": {"figure": object(), "canvas": None},
+        "days": {"figure": object(), "canvas": None},
+        "sessions": {"figure": object(), "canvas": None},
+    }
+
+    monkeypatch.setattr(gui_module, "build_recent_day_chart_data", lambda rows: (_ for _ in ()).throw(KeyError("bad day")))
+    monkeypatch.setattr(gui_module, "build_peak_day_chart_data", lambda rows: (_ for _ in ()).throw(KeyError("bad day")))
+    monkeypatch.setattr(gui_module, "plot_line_chart", lambda figure, **kwargs: calls.append("line"))
+    monkeypatch.setattr(gui_module, "plot_horizontal_bar_chart", lambda figure, **kwargs: calls.append("bar"))
+    monkeypatch.setattr(gui_module, "plot_pie_chart", lambda figure, **kwargs: calls.append("pie"))
+
+    warnings = app._refresh_charts()
+
+    assert warnings == ["overview_daily: 'bad day'", "overview_peak_days: 'bad day'"]
+    assert "bar" in calls
+    assert "pie" in calls
+    assert any(call[0] == "status" and "已加载，但图表有警告：图表刷新失败：'bad day'" in call[1] for call in calls if isinstance(call, tuple))
+
+
+def test_refresh_charts_isolates_days_data_preparation_failures(monkeypatch):
+    calls = []
+    app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
+    app.status_var = SimpleNamespace(set=lambda value: calls.append(("status", value)))
+    app.viewmodels = {
+        "overview": {"cards": {}, "daily_rows": []},
+        "models": [],
+        "days": [{"day": "2024-03-09", "total_tokens": 10}],
+        "sessions": [],
+    }
+    app.charts = {
+        "overview_daily": {"figure": object(), "canvas": None},
+        "overview_peak_days": {"figure": object(), "canvas": None},
         "overview_models": {"figure": object(), "canvas": None},
         "overview_composition": {"figure": object(), "canvas": None},
         "models": {"figure": object(), "canvas": None},
@@ -786,10 +956,173 @@ def test_refresh_charts_isolates_chart_data_preparation_failures(monkeypatch):
 
     warnings = app._refresh_charts()
 
-    assert warnings == ["overview_daily: 'bad day'", "days: 'bad day'"]
+    assert warnings == ["days: 'bad day'"]
     assert "bar" in calls
     assert "pie" in calls
     assert any(call[0] == "status" and "已加载，但图表有警告：图表刷新失败：'bad day'" in call[1] for call in calls if isinstance(call, tuple))
+
+
+def test_user_chart_warning_recognizes_overview_peak_days():
+    app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
+
+    assert app._user_chart_warning("overview_peak_days: 'bad day'") == "'bad day'"
+
+
+def test_refresh_charts_runs_overview_models_refresh_and_surfaces_its_warning():
+    calls = []
+    app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
+    app.status_var = SimpleNamespace(set=lambda value: calls.append(("status", value)))
+    app._refresh_overview_daily_chart = lambda: calls.append("overview_daily")
+    app._refresh_overview_peak_days_chart = lambda: calls.append("overview_peak_days")
+
+    def fail_overview_models():
+        calls.append("overview_models")
+        raise ChartRefreshError("overview_models: boom")
+
+    app._refresh_overview_models_chart = fail_overview_models
+    app._refresh_overview_composition_chart = lambda: calls.append("overview_composition")
+    app._refresh_models_chart = lambda: calls.append("models")
+    app._refresh_days_chart = lambda: calls.append("days")
+    app._refresh_sessions_chart = lambda: calls.append("sessions")
+
+    warnings = app._refresh_charts()
+
+    assert warnings == ["overview_models: boom"]
+    assert calls[:7] == [
+        "overview_daily",
+        "overview_peak_days",
+        "overview_models",
+        "overview_composition",
+        "models",
+        "days",
+        "sessions",
+    ]
+    assert any(call[0] == "status" and "图表刷新失败：boom" in call[1] for call in calls if isinstance(call, tuple))
+
+
+def test_build_overview_tab_registers_peak_days_chart_in_stable_2x2_grid(monkeypatch):
+    labels = []
+    registered = []
+    chart_frames = []
+
+    class FakeFrame:
+        def __init__(self, parent=None, **kwargs):
+            self.parent = parent
+            self.kwargs = kwargs
+            self.pack_calls = []
+            self.grid_calls = []
+            self.columnconfigure_calls = []
+            self.rowconfigure_calls = []
+
+        def pack(self, **kwargs):
+            self.pack_calls.append(kwargs)
+
+        def grid(self, **kwargs):
+            self.grid_calls.append(kwargs)
+
+        def columnconfigure(self, index, weight):
+            self.columnconfigure_calls.append((index, weight))
+
+        def rowconfigure(self, index, weight):
+            self.rowconfigure_calls.append((index, weight))
+
+    class FakeLabel:
+        def __init__(self, parent=None, **kwargs):
+            self.parent = parent
+            self.kwargs = kwargs
+
+        def grid(self, **kwargs):
+            pass
+
+    class FakeLabelFrame:
+        def __init__(self, parent, text):
+            self.parent = parent
+            self.text = text
+            self.grid_calls = []
+            chart_frames.append(self)
+            labels.append(text)
+
+        def grid(self, **kwargs):
+            self.grid_calls.append(kwargs)
+
+    class FakeStyle:
+        def configure(self, *args, **kwargs):
+            pass
+
+    class FakeCanvasWidget:
+        def pack(self, **kwargs):
+            pass
+
+    class FakeCanvas:
+        def get_tk_widget(self):
+            return FakeCanvasWidget()
+
+    monkeypatch.setattr(gui_module.ttk, "Frame", FakeFrame)
+    monkeypatch.setattr(gui_module.ttk, "Label", FakeLabel)
+    monkeypatch.setattr(gui_module.ttk, "LabelFrame", FakeLabelFrame)
+    monkeypatch.setattr(gui_module.ttk, "Style", FakeStyle)
+    monkeypatch.setattr(gui_module, "create_figure", lambda: object())
+    monkeypatch.setattr(gui_module, "attach_canvas", lambda figure, master: FakeCanvas())
+
+    app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
+    app.tabs = {"总览": object()}
+    app.charts = {}
+    app._create_treeview = lambda parent, columns: object()
+    app._register_chart = lambda name, figure, canvas: registered.append(name)
+
+    app._build_overview_tab()
+
+    overview_chart_area = app.overview_chart_area
+
+    assert labels == ["每日", "最高 token 七天", "模型", "构成"]
+    assert set(registered) == {
+        "overview_daily",
+        "overview_peak_days",
+        "overview_models",
+        "overview_composition",
+    }
+    assert chart_frames[0].grid_calls[0]["row"] == 0 and chart_frames[0].grid_calls[0]["column"] == 0
+    assert chart_frames[1].grid_calls[0]["row"] == 0 and chart_frames[1].grid_calls[0]["column"] == 1
+    assert chart_frames[2].grid_calls[0]["row"] == 1 and chart_frames[2].grid_calls[0]["column"] == 0
+    assert chart_frames[3].grid_calls[0]["row"] == 1 and chart_frames[3].grid_calls[0]["column"] == 1
+    assert overview_chart_area.columnconfigure_calls == [(0, 1), (1, 1)]
+    assert overview_chart_area.rowconfigure_calls == [(0, 1), (1, 1)]
+    assert overview_chart_area.pack_calls[0]["fill"] == "both"
+    assert overview_chart_area.pack_calls[0]["expand"] is True
+
+
+@pytest.mark.skipif(charts.Figure is None, reason="matplotlib unavailable")
+def test_bar_chart_inverts_y_axis_so_first_ranked_label_renders_at_top():
+    figure = charts.create_figure()
+    assert figure is not None
+
+    charts.plot_horizontal_bar_chart(
+        figure,
+        title="最高 token 七天",
+        labels=["03/10", "03/09"],
+        values=[2.5, 2.0],
+    )
+
+    axis = figure.axes[0]
+    assert axis.yaxis_inverted()
+
+
+@pytest.mark.skipif(charts.Figure is None, reason="matplotlib unavailable")
+def test_bar_chart_renders_duplicate_labels_as_distinct_rows():
+    figure = charts.create_figure()
+    assert figure is not None
+
+    charts.plot_horizontal_bar_chart(
+        figure,
+        title="最高 token 七天",
+        labels=["03/02", "03/02", "03/01"],
+        values=[300, 250, 200],
+    )
+
+    axis = figure.axes[0]
+    assert len(axis.patches) == 3
+    assert sorted({round(patch.get_y(), 6) for patch in axis.patches}) == [-0.4, 0.6, 1.6]
+    assert [tick.get_text() for tick in axis.get_yticklabels()] == ["03/02", "03/02", "03/01"]
 
 
 def test_browse_db_localizes_file_dialog(monkeypatch):

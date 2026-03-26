@@ -310,3 +310,46 @@ def test_export_usage_csvs_writes_legacy_filenames(tmp_path):
     assert "day,message_count,total_tokens,input_tokens,output_tokens,reasoning_tokens,cache_read,cache_write,recorded_cost_total" in (tmp_path / "token_export" / "by_day.csv").read_text(encoding="utf-8-sig")
     assert "session_title" in (tmp_path / "token_export" / "raw_messages_with_tokens.csv").read_text(encoding="utf-8-sig")
     assert ",," in (tmp_path / "token_export" / "raw_messages_with_tokens.csv").read_text(encoding="utf-8-sig")
+
+
+def test_export_usage_csvs_includes_additional_raw_message_fields(tmp_path):
+    datasets = {
+        "summary": {"message_count": 0},
+        "by_model": [],
+        "by_session": [],
+        "by_day": [],
+        "raw_messages": [{
+            "message_id": "m1",
+            "session_id": "s1",
+            "session_title": "Demo",
+            "time_created": 1710000000000,
+            "time_created_text": "2024-03-09 16:00:00",
+            "day": "2024-03-09",
+            "provider": "openai",
+            "model": "gpt-5.4",
+            "role": "assistant",
+            "mode": "chat",
+            "cost": None,
+            "estimated_cost": 1.0,
+            "estimated_cache_read_cost": 0.1,
+            "estimated_cache_write_cost": None,
+            "price_status": "priced",
+            "price_source": "bundled",
+            "pricing_mode": "session_tiered",
+            "pricing_tier": "long_context",
+            "total_tokens": 30,
+            "input_tokens": 10,
+            "output_tokens": 20,
+            "reasoning_tokens": 0,
+            "cache_read": 0,
+            "cache_write": 0,
+        }],
+    }
+
+    export_usage_csvs(tmp_path / "token_export", datasets)
+
+    raw_csv = (tmp_path / "token_export" / "raw_messages_with_tokens.csv").read_text(encoding="utf-8-sig")
+    assert "pricing_mode" in raw_csv
+    assert "pricing_tier" in raw_csv
+    assert "session_tiered" in raw_csv
+    assert "long_context" in raw_csv

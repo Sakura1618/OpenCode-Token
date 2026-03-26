@@ -95,6 +95,15 @@ def _write_csv(path: Path, rows, fieldnames):
             writer.writerow(row)
 
 
+def _raw_message_fieldnames(rows, fieldnames):
+    resolved = list(fieldnames)
+    for row in rows:
+        for key in row:
+            if key not in resolved:
+                resolved.append(key)
+    return resolved
+
+
 def export_usage_csvs(out_dir, datasets):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -102,5 +111,7 @@ def export_usage_csvs(out_dir, datasets):
         rows = datasets[name]
         if isinstance(rows, dict):
             rows = [rows]
+        if name == "raw_messages":
+            fieldnames = _raw_message_fieldnames(rows, fieldnames)
         _write_csv(out_dir / filename, rows, fieldnames)
     return out_dir

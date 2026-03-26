@@ -1,14 +1,37 @@
 try:
+    import matplotlib
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
     from matplotlib.figure import Figure
 except ImportError:  # pragma: no cover
+    matplotlib = None
     Figure = None
     FigureCanvasTkAgg = None
+
+
+CJK_FONT_CANDIDATES = [
+    "Microsoft YaHei",
+    "Microsoft JhengHei",
+    "SimHei",
+    "Noto Sans CJK SC",
+    "Noto Sans CJK TC",
+    "Source Han Sans SC",
+    "Arial Unicode MS",
+    "DejaVu Sans",
+]
+
+
+def configure_matplotlib_fonts():
+    if matplotlib is None:
+        return
+    matplotlib.rcParams["font.family"] = ["sans-serif"]
+    matplotlib.rcParams["font.sans-serif"] = CJK_FONT_CANDIDATES
+    matplotlib.rcParams["axes.unicode_minus"] = False
 
 
 def create_figure(width=5, height=3):
     if Figure is None:
         return None
+    configure_matplotlib_fonts()
     return Figure(figsize=(width, height), dpi=100)
 
 
@@ -72,7 +95,11 @@ def plot_horizontal_bar_chart(figure, title, labels, values, xlabel=""):
         show_empty_state(axis, title)
         figure.tight_layout()
         return
-    axis.barh(labels, values)
+    positions = list(range(len(labels)))
+    axis.barh(positions, values)
+    axis.set_yticks(positions)
+    axis.set_yticklabels(labels)
+    axis.invert_yaxis()
     axis.set_title(title)
     if xlabel:
         axis.set_xlabel(xlabel)

@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 import os
 from pathlib import Path
 import tkinter as tk
@@ -27,6 +28,7 @@ LABEL_TEXT = {
     "filter_model": "模型",
     "chart": "图表",
     "daily": "每日",
+    "peak_days": "最高 token 七天",
     "models": "模型",
     "composition": "构成",
     "day": "日期",
@@ -76,6 +78,29 @@ def scale_tokens_to_millions(values):
     return scaled
 
 
+def _parsed_day(day):
+    if isinstance(day, str):
+        try:
+            return datetime.strptime(day, "%Y-%m-%d")
+        except ValueError:
+            return None
+    return None
+
+
+def _ascending_day_sort_key(day):
+    parsed = _parsed_day(day)
+    if parsed is not None:
+        return (0, parsed)
+    return (1, day or "")
+
+
+def _descending_day_sort_key(day):
+    parsed = _parsed_day(day)
+    if parsed is not None:
+        return (1, parsed)
+    return (0, day or "")
+
+
 def build_top_model_chart_data(rows):
     sorted_rows = sorted(rows, key=lambda row: row.get("total_tokens", 0) or 0, reverse=True)[:10]
     labels = []
@@ -89,8 +114,63 @@ def build_top_model_chart_data(rows):
 
 
 def build_day_chart_data(rows):
-    sorted_rows = sorted(rows, key=lambda row: row.get("day", "") or "")
-    labels = [row.get("day", "") or "" for row in sorted_rows]
+    sorted_rows = sorted(rows, key=lambda row: _ascending_day_sort_key(row.get("day", "") or ""))
+    labels = [format_day_label(row.get("day", "") or "") for row in sorted_rows]
+    values = [row.get("total_tokens", 0) or 0 for row in sorted_rows]
+    return labels, values
+
+
+def format_day_label(day):
+    if isinstance(day, str):
+        try:
+            return datetime.strptime(day, "%Y-%m-%d").strftime("%m/%d")
+        except ValueError:
+            pass
+    return day
+
+
+def build_recent_day_chart_data(rows):
+    valid_rows = []
+    malformed_rows = []
+    for row in rows:
+        day = row.get("day", "") or ""
+        if _parsed_day(day) is not None:
+            valid_rows.append(row)
+        else:
+            malformed_rows.append(row)
+
+    if valid_rows:
+        tokens_by_day = {row.get("day", "") or "": row.get("total_tokens", 0) or 0 for row in valid_rows}
+        latest_day = max(_parsed_day(day) for day in tokens_by_day)
+        recent_rows = []
+        for offset in range(6, -1, -1):
+            current_day = latest_day - timedelta(days=offset)
+            day_key = current_day.strftime("%Y-%m-%d")
+            recent_rows.append({"day": day_key, "total_tokens": tokens_by_day.get(day_key, 0)})
+    else:
+        recent_rows = []
+
+    if not valid_rows and len(recent_rows) < 7:
+        remaining = 7 - len(recent_rows)
+        recent_rows.extend(
+            sorted(malformed_rows, key=lambda row: row.get("day", "") or "")[:remaining]
+        )
+
+    labels = [format_day_label(row.get("day", "") or "") for row in recent_rows]
+    values = [row.get("total_tokens", 0) or 0 for row in recent_rows]
+    return labels, values
+
+
+def build_peak_day_chart_data(rows):
+    sorted_rows = sorted(
+        rows,
+        key=lambda row: (
+            row.get("total_tokens", 0) or 0,
+            _descending_day_sort_key(row.get("day", "") or ""),
+        ),
+        reverse=True,
+    )[:7]
+    labels = [format_day_label(row.get("day", "") or "") for row in sorted_rows]
     values = [row.get("total_tokens", 0) or 0 for row in sorted_rows]
     return labels, values
 
@@ -166,13 +246,24 @@ class OpenCodeTokenApp(ttk.Frame):
             self.overview_card_labels[key] = label
 
         self.overview_chart_area = ttk.Frame(frame)
-        self.overview_chart_area.pack(fill="both", expand=False, padx=8, pady=8)
-        for name in ["daily", "models", "composition"]:
-            chart_frame = ttk.LabelFrame(self.overview_chart_area, text=ui_text(name))
-            chart_frame.pack(side="left", fill="both", expand=True, padx=4)
+        self.overview_chart_area.pack(fill="both", expand=True, padx=8, pady=8)
+        overview_chart_specs = [
+            ("overview_daily", "daily"),
+            ("overview_peak_days", "peak_days"),
+            ("overview_models", "models"),
+            ("overview_composition", "composition"),
+        ]
+        for column in range(2):
+            self.overview_chart_area.columnconfigure(column, weight=1)
+        for row in range(2):
+            self.overview_chart_area.rowconfigure(row, weight=1)
+        for index, (chart_name, label_key) in enumerate(overview_chart_specs):
+            row, column = divmod(index, 2)
+            chart_frame = ttk.LabelFrame(self.overview_chart_area, text=ui_text(label_key))
+            chart_frame.grid(row=row, column=column, sticky="nsew", padx=4, pady=4)
             figure = create_figure()
             canvas = attach_canvas(figure, chart_frame)
-            self._register_chart(f"overview_{name}", figure, canvas)
+            self._register_chart(chart_name, figure, canvas)
             if canvas is not None:
                 canvas.get_tk_widget().pack(fill="both", expand=True)
 
@@ -284,7 +375,7 @@ class OpenCodeTokenApp(ttk.Frame):
 
     def _user_chart_warning(self, warning):
         prefix, _, remainder = warning.partition(": ")
-        if prefix in {"overview_daily", "overview_models", "overview_composition", "models", "days", "sessions"} and remainder:
+        if prefix in {"overview_daily", "overview_peak_days", "overview_models", "overview_composition", "models", "days", "sessions"} and remainder:
             return remainder
         return warning
 
@@ -292,6 +383,7 @@ class OpenCodeTokenApp(ttk.Frame):
         warnings = []
         for refresh in (
             self._refresh_overview_daily_chart,
+            self._refresh_overview_peak_days_chart,
             self._refresh_overview_models_chart,
             self._refresh_overview_composition_chart,
             self._refresh_models_chart,
@@ -311,7 +403,7 @@ class OpenCodeTokenApp(ttk.Frame):
             if viewmodels is None:
                 return
             overview = viewmodels["overview"]
-            day_labels, day_values = build_day_chart_data(overview.get("daily_rows", []))
+            day_labels, day_values = build_recent_day_chart_data(overview.get("daily_rows", []))
             self._draw_chart(
                 "overview_daily",
                 plot_line_chart,
@@ -325,18 +417,38 @@ class OpenCodeTokenApp(ttk.Frame):
         except Exception as exc:
             raise ChartRefreshError(f"overview_daily: {exc}") from exc
 
+    def _refresh_overview_peak_days_chart(self):
+        try:
+            viewmodels = self.viewmodels
+            if viewmodels is None:
+                return
+            overview = viewmodels["overview"]
+            model_labels, model_values = build_peak_day_chart_data(overview.get("daily_rows", []))
+            self._draw_chart(
+                "overview_peak_days",
+                plot_horizontal_bar_chart,
+                title="最高 token 七天",
+                labels=model_labels,
+                values=scale_tokens_to_millions(model_values),
+                xlabel="token（M）",
+            )
+        except ChartRefreshError:
+            raise
+        except Exception as exc:
+            raise ChartRefreshError(f"overview_peak_days: {exc}") from exc
+
     def _refresh_overview_models_chart(self):
         try:
             viewmodels = self.viewmodels
             if viewmodels is None:
                 return
-            model_labels, model_values = build_top_model_chart_data(viewmodels.get("models", []))
+            labels, values = build_top_model_chart_data(viewmodels.get("models", []))
             self._draw_chart(
                 "overview_models",
                 plot_horizontal_bar_chart,
                 title="热门模型",
-                labels=model_labels,
-                values=scale_tokens_to_millions(model_values),
+                labels=labels,
+                values=scale_tokens_to_millions(values),
                 xlabel="token（M）",
             )
         except ChartRefreshError:
