@@ -1,0 +1,9 @@
+tests/ export-ignore
+docs/ export-ignore
+build/ export-ignore
+token_export/ export-ignore
+.pytest_cache/ export-ignore
+*.pyc export-ignore
+__pycache__/ export-ignore
+scripts/ export-ignore
+README.md text eol=lf
