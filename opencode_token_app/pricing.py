@@ -15,6 +15,7 @@ def normalize_price_map(raw_map):
         model = entry.get("model") or key.split(":", 1)[1]
         entry["provider"] = provider
         entry["model"] = model
+        entry.setdefault("currency", "USD")
         normalized[canonical_model_key(provider, model)] = entry
     return normalized
 
@@ -63,6 +64,7 @@ def _group_key_for_session_tiering(row):
 def _mark_unpriced_row(new_row, price_source):
     new_row.update({
         "estimated_cost": None,
+        "estimated_cost_currency": None,
         "estimated_cache_read_cost": None,
         "estimated_cache_write_cost": None,
         "price_status": "unpriced",
@@ -72,9 +74,10 @@ def _mark_unpriced_row(new_row, price_source):
     })
 
 
-def _mark_priced_row(new_row, estimated_cost, estimated_cache_read_cost, estimated_cache_write_cost, price, pricing_mode, pricing_tier):
+def _mark_priced_row(new_row, estimated_cost, estimated_cost_currency, estimated_cache_read_cost, estimated_cache_write_cost, price, pricing_mode, pricing_tier):
     new_row.update({
         "estimated_cost": estimated_cost,
+        "estimated_cost_currency": estimated_cost_currency,
         "estimated_cache_read_cost": estimated_cache_read_cost,
         "estimated_cache_write_cost": estimated_cache_write_cost,
         "price_status": "priced",
@@ -203,6 +206,7 @@ def enrich_raw_rows_with_pricing(rows, price_map):
         _mark_priced_row(
             new_row,
             estimated_cost,
+            price.get("currency") or "USD",
             estimated_cache_read_cost,
             estimated_cache_write_cost,
             price,
@@ -215,8 +219,28 @@ def enrich_raw_rows_with_pricing(rows, price_map):
 
 def _overlay_defaults(row):
     row.setdefault("estimated_cost_total", 0)
+    row.setdefault("estimated_cost_totals", {})
     row.setdefault("priced_message_count", 0)
     row.setdefault("unpriced_message_count", 0)
+
+
+def _add_estimated_cost(target, estimated_cost, currency):
+    if estimated_cost is None:
+        return
+    resolved_currency = currency or "USD"
+    totals = dict(target.get("estimated_cost_totals", {}))
+    totals[resolved_currency] = round(totals.get(resolved_currency, 0) + estimated_cost, 10)
+    target["estimated_cost_totals"] = totals
+
+
+def _finalize_estimated_cost_total(target):
+    totals = target.get("estimated_cost_totals", {}) or {}
+    if not totals:
+        target["estimated_cost_total"] = 0
+    elif len(totals) == 1:
+        target["estimated_cost_total"] = next(iter(totals.values()))
+    else:
+        target["estimated_cost_total"] = None
 
 
 def apply_pricing_overlays(datasets):
@@ -235,8 +259,9 @@ def apply_pricing_overlays(datasets):
     for row in datasets["raw_messages"]:
         status = row.get("price_status")
         estimated_cost = row.get("estimated_cost")
+        estimated_cost_currency = row.get("estimated_cost_currency")
         if estimated_cost is not None:
-            summary["estimated_cost_total"] += estimated_cost
+            _add_estimated_cost(summary, estimated_cost, estimated_cost_currency)
         if status == "priced":
             summary["priced_message_count"] += 1
         else:
@@ -252,11 +277,15 @@ def apply_pricing_overlays(datasets):
             if not target:
                 continue
             if estimated_cost is not None:
-                target["estimated_cost_total"] += estimated_cost
+                _add_estimated_cost(target, estimated_cost, estimated_cost_currency)
             if status == "priced":
                 target["priced_message_count"] += 1
             else:
                 target["unpriced_message_count"] += 1
+
+    _finalize_estimated_cost_total(summary)
+    for row in by_model + by_session + by_day:
+        _finalize_estimated_cost_total(row)
 
     return {
         **datasets,

@@ -1,15 +1,843 @@
 {
-  "openai:gpt-4.1-mini": {
-    "provider": "openai",
-    "model": "gpt-4.1-mini",
-    "input_price_per_million": 0.4,
-    "output_price_per_million": 1.6
-  },
   "anthropic:claude-3-5-sonnet": {
     "provider": "anthropic",
     "model": "claude-3-5-sonnet",
     "input_price_per_million": 3.0,
-    "output_price_per_million": 15.0
+    "output_price_per_million": 15.0,
+    "pricing_status": "legacy",
+    "source_urls": [
+      "https://claude.com/pricing#api"
+    ],
+    "notes": [
+      "Kept from existing bundled pricing.",
+      "Anthropic's current public lineup has moved to Claude 4.x / 4.5 / 4.6 families."
+    ]
+  },
+  "anthropic:claude-3-haiku": {
+    "provider": "anthropic",
+    "model": "claude-3-haiku",
+    "input_price_per_million": 0.25,
+    "output_price_per_million": 1.25,
+    "cache_read_price_per_million": 0.03,
+    "cache_write_price_per_million": 0.3,
+    "pricing_status": "legacy",
+    "source_urls": [
+      "https://claude.com/pricing#api",
+      "https://platform.claude.com/docs/en/about-claude/models/overview"
+    ],
+    "notes": [
+      "Public Anthropic pricing lists this as Haiku 3.",
+      "Cache write/read prices reflect public 5-minute prompt-cache pricing."
+    ]
+  },
+  "anthropic:claude-haiku-4-5": {
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5",
+    "input_price_per_million": 1.0,
+    "output_price_per_million": 5.0,
+    "cache_read_price_per_million": 0.1,
+    "cache_write_price_per_million": 1.25,
+    "batch_input_price_per_million": 0.5,
+    "batch_output_price_per_million": 2.5,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://claude.com/pricing#api",
+      "https://platform.claude.com/docs/en/about-claude/models/overview"
+    ],
+    "notes": [
+      "Batch prices are derived from Anthropic's official 50% batch discount statement.",
+      "Cache write/read prices reflect public 5-minute prompt-cache pricing."
+    ]
+  },
+  "anthropic:claude-opus-4-0": {
+    "provider": "anthropic",
+    "model": "claude-opus-4-0",
+    "input_price_per_million": 15.0,
+    "output_price_per_million": 75.0,
+    "cache_read_price_per_million": 1.5,
+    "cache_write_price_per_million": 18.75,
+    "pricing_status": "legacy",
+    "source_urls": [
+      "https://claude.com/pricing#api",
+      "https://platform.claude.com/docs/en/about-claude/models/overview"
+    ]
+  },
+  "anthropic:claude-opus-4-1": {
+    "provider": "anthropic",
+    "model": "claude-opus-4-1",
+    "input_price_per_million": 15.0,
+    "output_price_per_million": 75.0,
+    "cache_read_price_per_million": 1.5,
+    "cache_write_price_per_million": 18.75,
+    "pricing_status": "legacy",
+    "source_urls": [
+      "https://claude.com/pricing#api",
+      "https://platform.claude.com/docs/en/about-claude/models/overview"
+    ]
+  },
+  "anthropic:claude-opus-4-5": {
+    "provider": "anthropic",
+    "model": "claude-opus-4-5",
+    "input_price_per_million": 5.0,
+    "output_price_per_million": 25.0,
+    "cache_read_price_per_million": 0.5,
+    "cache_write_price_per_million": 6.25,
+    "pricing_status": "legacy",
+    "source_urls": [
+      "https://claude.com/pricing#api",
+      "https://platform.claude.com/docs/en/about-claude/models/overview"
+    ]
+  },
+  "anthropic:claude-opus-4-6": {
+    "provider": "anthropic",
+    "model": "claude-opus-4-6",
+    "input_price_per_million": 5.0,
+    "output_price_per_million": 25.0,
+    "cache_read_price_per_million": 0.5,
+    "cache_write_price_per_million": 6.25,
+    "batch_input_price_per_million": 2.5,
+    "batch_output_price_per_million": 12.5,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://claude.com/pricing#api",
+      "https://platform.claude.com/docs/en/about-claude/models/overview",
+      "https://www.anthropic.com/news/claude-opus-4-6"
+    ],
+    "notes": [
+      "Batch prices are derived from Anthropic's official 50% batch discount statement.",
+      "Cache write/read prices reflect public 5-minute prompt-cache pricing.",
+      "Anthropic also publicly notes premium long-context pricing above 200k tokens for this model."
+    ],
+    "long_context_threshold_tokens": 200000,
+    "long_context_input_price_per_million": 10.0,
+    "long_context_output_price_per_million": 37.5
+  },
+  "anthropic:claude-sonnet-4-0": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-0",
+    "input_price_per_million": 3.0,
+    "output_price_per_million": 15.0,
+    "cache_read_price_per_million": 0.3,
+    "cache_write_price_per_million": 3.75,
+    "pricing_status": "legacy",
+    "source_urls": [
+      "https://claude.com/pricing#api",
+      "https://platform.claude.com/docs/en/about-claude/models/overview"
+    ]
+  },
+  "anthropic:claude-sonnet-4-5": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "input_price_per_million": 3.0,
+    "output_price_per_million": 15.0,
+    "cache_read_price_per_million": 0.3,
+    "cache_write_price_per_million": 3.75,
+    "pricing_status": "legacy",
+    "source_urls": [
+      "https://claude.com/pricing#api",
+      "https://platform.claude.com/docs/en/about-claude/models/overview"
+    ]
+  },
+  "anthropic:claude-sonnet-4-6": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "input_price_per_million": 3.0,
+    "output_price_per_million": 15.0,
+    "cache_read_price_per_million": 0.3,
+    "cache_write_price_per_million": 3.75,
+    "batch_input_price_per_million": 1.5,
+    "batch_output_price_per_million": 7.5,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://claude.com/pricing#api",
+      "https://platform.claude.com/docs/en/about-claude/models/overview",
+      "https://www.anthropic.com/news/claude-sonnet-4-6"
+    ],
+    "notes": [
+      "Batch prices are derived from Anthropic's official 50% batch discount statement.",
+      "Cache write/read prices reflect public 5-minute prompt-cache pricing."
+    ]
+  },
+  "gemini:gemini-2.5-flash": {
+    "provider": "gemini",
+    "model": "gemini-2.5-flash",
+    "input_price_per_million": 0.3,
+    "output_price_per_million": 2.5,
+    "cache_read_price_per_million": 0.03,
+    "audio_input_price_per_million": 1.0,
+    "audio_cache_read_price_per_million": 0.1,
+    "cache_storage_price_per_million_token_hours": 1.0,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://ai.google.dev/gemini-api/docs/pricing",
+      "https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash-preview-09-2025"
+    ],
+    "notes": [
+      "Top-level input/cache fields use the official text-image-video rate.",
+      "Audio input/cache pricing is stored separately because the app's current pricing engine expects a single primary input rate."
+    ]
+  },
+  "gemini:gemini-2.5-flash-lite": {
+    "provider": "gemini",
+    "model": "gemini-2.5-flash-lite",
+    "input_price_per_million": 0.1,
+    "output_price_per_million": 0.4,
+    "cache_read_price_per_million": 0.01,
+    "audio_input_price_per_million": 0.3,
+    "audio_cache_read_price_per_million": 0.03,
+    "cache_storage_price_per_million_token_hours": 1.0,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://ai.google.dev/gemini-api/docs/pricing",
+      "https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash-lite"
+    ],
+    "notes": [
+      "Top-level input/cache fields use the official text-image-video rate.",
+      "Audio input/cache pricing is stored separately because the app's current pricing engine expects a single primary input rate."
+    ]
+  },
+  "gemini:gemini-2.5-pro": {
+    "provider": "gemini",
+    "model": "gemini-2.5-pro",
+    "input_price_per_million": 1.25,
+    "output_price_per_million": 10.0,
+    "cache_read_price_per_million": 0.125,
+    "pricing_status": "current",
+    "context_pricing_threshold_tokens": 200000,
+    "long_context_input_price_per_million": 2.5,
+    "long_context_output_price_per_million": 15.0,
+    "long_context_cache_read_price_per_million": 0.25,
+    "cache_storage_price_per_million_token_hours": 4.5,
+    "source_urls": [
+      "https://ai.google.dev/gemini-api/docs/pricing",
+      "https://ai.google.dev/gemini-api/docs/models/gemini-2.5-pro"
+    ],
+    "notes": [
+      "Top-level prices use the official <=200k input-token tier.",
+      "Long-context rates are stored separately because the app's current pricing engine does not support Gemini's per-request threshold pricing model."
+    ]
+  },
+  "gemini:gemini-3-flash-preview": {
+    "provider": "gemini",
+    "model": "gemini-3-flash-preview",
+    "input_price_per_million": 1.25,
+    "output_price_per_million": 10.0,
+    "cache_read_price_per_million": 0.125,
+    "pricing_status": "preview",
+    "context_pricing_threshold_tokens": 200000,
+    "long_context_input_price_per_million": 2.5,
+    "long_context_output_price_per_million": 15.0,
+    "long_context_cache_read_price_per_million": 0.25,
+    "cache_storage_price_per_million_token_hours": 4.5,
+    "source_urls": [
+      "https://ai.google.dev/gemini-api/docs/pricing",
+      "https://ai.google.dev/gemini-api/docs/models"
+    ],
+    "notes": [
+      "Top-level prices use the official <=200k input-token tier.",
+      "Model-card output-token limit was not separately captured during this research pass."
+    ]
+  },
+  "gemini:gemini-3.1-flash-lite-preview": {
+    "provider": "gemini",
+    "model": "gemini-3.1-flash-lite-preview",
+    "input_price_per_million": 0.25,
+    "output_price_per_million": 1.5,
+    "cache_read_price_per_million": 0.025,
+    "audio_input_price_per_million": 0.5,
+    "audio_cache_read_price_per_million": 0.05,
+    "cache_storage_price_per_million_token_hours": 1.0,
+    "pricing_status": "preview",
+    "source_urls": [
+      "https://ai.google.dev/gemini-api/docs/pricing",
+      "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite-preview"
+    ],
+    "notes": [
+      "Top-level input/cache fields use the official text-image-video rate.",
+      "Audio input/cache pricing is stored separately because the app's current pricing engine expects a single primary input rate."
+    ]
+  },
+  "gemini:gemini-3.1-pro-preview": {
+    "provider": "gemini",
+    "model": "gemini-3.1-pro-preview",
+    "input_price_per_million": 2.0,
+    "output_price_per_million": 12.0,
+    "cache_read_price_per_million": 0.2,
+    "pricing_status": "preview",
+    "context_pricing_threshold_tokens": 200000,
+    "long_context_input_price_per_million": 4.0,
+    "long_context_output_price_per_million": 18.0,
+    "long_context_cache_read_price_per_million": 0.4,
+    "cache_storage_price_per_million_token_hours": 4.5,
+    "source_urls": [
+      "https://ai.google.dev/gemini-api/docs/pricing",
+      "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-pro-preview"
+    ],
+    "notes": [
+      "Top-level prices use the official <=200k input-token tier.",
+      "Long-context rates are stored separately because the app's current pricing engine does not support Gemini's per-request threshold pricing model."
+    ]
+  },
+  "gemini:gemini-3.1-pro-preview-customtools": {
+    "provider": "gemini",
+    "model": "gemini-3.1-pro-preview-customtools",
+    "input_price_per_million": 2.0,
+    "output_price_per_million": 12.0,
+    "cache_read_price_per_million": 0.2,
+    "pricing_status": "preview",
+    "context_pricing_threshold_tokens": 200000,
+    "long_context_input_price_per_million": 4.0,
+    "long_context_output_price_per_million": 18.0,
+    "long_context_cache_read_price_per_million": 0.4,
+    "cache_storage_price_per_million_token_hours": 4.5,
+    "source_urls": [
+      "https://ai.google.dev/gemini-api/docs/pricing",
+      "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-pro-preview"
+    ],
+    "notes": [
+      "Google documents this SKU as using the same pricing as gemini-3.1-pro-preview.",
+      "Top-level prices use the official <=200k input-token tier."
+    ]
+  },
+  "glm:glm-4.5": {
+    "provider": "glm",
+    "model": "glm-4.5",
+    "currency": "CNY",
+    "input_price_per_million": 0.8,
+    "output_price_per_million": 2.0,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://bigmodel.cn/pricing",
+      "https://docs.bigmodel.cn/cn/guide/models/text/glm-4.5"
+    ],
+    "notes": [
+      "Official GLM-4.5 documentation states API pricing as low as input 0.8 CNY and output 2 CNY per million tokens.",
+      "This entry is limited to glm-4.5 itself and is not automatically applied to other GLM-4.5 family variants."
+    ]
+  },
+  "deepseek:deepseek-chat": {
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "currency": "USD",
+    "input_price_per_million": 0.28,
+    "output_price_per_million": 0.42,
+    "cache_read_price_per_million": 0.028,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://api-docs.deepseek.com/quick_start/pricing",
+      "https://api-docs.deepseek.com/api/list-models",
+      "https://api-docs.deepseek.com/updates",
+      "https://api-docs.deepseek.com/faq"
+    ],
+    "notes": [
+      "Official pricing page lists cache-hit and cache-miss input pricing separately.",
+      "Top-level input price uses the official cache-miss input price.",
+      "cache_read_price_per_million stores the official cache-hit input price.",
+      "DeepSeek FAQ states unified pricing with no public tiered plans."
+    ]
+  },
+  "deepseek:deepseek-reasoner": {
+    "provider": "deepseek",
+    "model": "deepseek-reasoner",
+    "currency": "USD",
+    "input_price_per_million": 0.28,
+    "output_price_per_million": 0.42,
+    "cache_read_price_per_million": 0.028,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://api-docs.deepseek.com/quick_start/pricing",
+      "https://api-docs.deepseek.com/api/list-models",
+      "https://api-docs.deepseek.com/updates",
+      "https://api-docs.deepseek.com/faq"
+    ],
+    "notes": [
+      "Official pricing page lists cache-hit and cache-miss input pricing separately.",
+      "Top-level input price uses the official cache-miss input price.",
+      "cache_read_price_per_million stores the official cache-hit input price.",
+      "DeepSeek FAQ states unified pricing with no public tiered plans."
+    ]
+  },
+  "kimi:kimi-k2-0905-preview": {
+    "provider": "kimi",
+    "model": "kimi-k2-0905-preview",
+    "currency": "CNY",
+    "input_price_per_million": 4.0,
+    "output_price_per_million": 16.0,
+    "cache_read_price_per_million": 1.0,
+    "pricing_status": "preview",
+    "source_urls": [
+      "https://platform.kimi.com/",
+      "https://platform.kimi.com/docs/guide/kimi-k2-quickstart"
+    ],
+    "notes": [
+      "Official homepage card shows public tax-inclusive pricing.",
+      "cache_read_price_per_million stores the official cache-hit input price."
+    ]
+  },
+  "kimi:kimi-k2-thinking": {
+    "provider": "kimi",
+    "model": "kimi-k2-thinking",
+    "currency": "CNY",
+    "input_price_per_million": 4.0,
+    "output_price_per_million": 16.0,
+    "cache_read_price_per_million": 1.0,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://platform.kimi.com/",
+      "https://platform.kimi.com/docs/guide/use-kimi-k2-thinking-model"
+    ],
+    "notes": [
+      "Official homepage card shows public tax-inclusive pricing.",
+      "cache_read_price_per_million stores the official cache-hit input price."
+    ]
+  },
+  "kimi:kimi-k2-turbo-preview": {
+    "provider": "kimi",
+    "model": "kimi-k2-turbo-preview",
+    "currency": "CNY",
+    "input_price_per_million": 8.0,
+    "output_price_per_million": 58.0,
+    "cache_read_price_per_million": 1.0,
+    "pricing_status": "preview",
+    "source_urls": [
+      "https://platform.kimi.com/docs/pricing/chat"
+    ],
+    "notes": [
+      "Official pricing page exposes this as a public row.",
+      "cache_read_price_per_million stores the official cache-hit input price."
+    ]
+  },
+  "kimi:kimi-k2.5": {
+    "provider": "kimi",
+    "model": "kimi-k2.5",
+    "currency": "CNY",
+    "input_price_per_million": 4.0,
+    "output_price_per_million": 21.0,
+    "cache_read_price_per_million": 0.7,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://platform.kimi.com/docs/pricing/chat",
+      "https://platform.kimi.com/"
+    ],
+    "notes": [
+      "Official public pricing is tax-inclusive.",
+      "cache_read_price_per_million stores the official cache-hit input price."
+    ]
+  },
+  "qwen:qwen-flash": {
+    "provider": "qwen",
+    "model": "qwen-flash",
+    "currency": "USD",
+    "input_price_per_million": 0.022,
+    "output_price_per_million": 0.216,
+    "cache_read_price_per_million": 0.0022,
+    "cache_write_price_per_million": 0.0275,
+    "implicit_cache_read_price_per_million": 0.0044,
+    "pricing_status": "current",
+    "context_pricing_tiers": {
+      "le_128k": {
+        "input_price_per_million": 0.022,
+        "output_price_per_million": 0.216
+      },
+      "gt_128k_le_256k": {
+        "input_price_per_million": 0.087,
+        "output_price_per_million": 0.861
+      },
+      "gt_256k_le_1m": {
+        "input_price_per_million": 0.173,
+        "output_price_per_million": 1.721
+      }
+    },
+    "source_urls": [
+      "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+      "https://www.alibabacloud.com/help/en/model-studio/models",
+      "https://www.alibabacloud.com/help/en/model-studio/context-cache"
+    ],
+    "notes": [
+      "Top-level prices use the official Chinese Mainland base tier.",
+      "cache_write_price_per_million is the official explicit/session cache-create rate of 125% of standard input price.",
+      "cache_read_price_per_million is the official explicit/session cache-hit rate of 10% of standard input price.",
+      "implicit_cache_read_price_per_million stores the official implicit cache-hit rate of 20% of standard input price."
+    ]
+  },
+  "qwen:qwen-max": {
+    "provider": "qwen",
+    "model": "qwen-max",
+    "currency": "USD",
+    "input_price_per_million": 0.345,
+    "output_price_per_million": 1.377,
+    "cache_read_price_per_million": 0.069,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+      "https://www.alibabacloud.com/help/en/model-studio/models",
+      "https://www.alibabacloud.com/help/en/model-studio/context-cache"
+    ],
+    "notes": [
+      "Top-level prices use the official Chinese Mainland table.",
+      "Only implicit cache-hit pricing was publicly confirmed for this model during this research pass, at 20% of input price."
+    ]
+  },
+  "qwen:qwen-plus": {
+    "provider": "qwen",
+    "model": "qwen-plus",
+    "currency": "USD",
+    "input_price_per_million": 0.115,
+    "output_price_per_million": 0.287,
+    "thinking_output_price_per_million": 1.147,
+    "cache_read_price_per_million": 0.0115,
+    "cache_write_price_per_million": 0.14375,
+    "implicit_cache_read_price_per_million": 0.023,
+    "pricing_status": "current",
+    "context_pricing_tiers": {
+      "le_128k": {
+        "input_price_per_million": 0.115,
+        "output_price_per_million": 0.287,
+        "thinking_output_price_per_million": 1.147
+      },
+      "gt_128k_le_256k": {
+        "input_price_per_million": 0.345,
+        "output_price_per_million": 2.868,
+        "thinking_output_price_per_million": 3.441
+      },
+      "gt_256k_le_1m": {
+        "input_price_per_million": 0.689,
+        "output_price_per_million": 6.881,
+        "thinking_output_price_per_million": 9.175
+      }
+    },
+    "source_urls": [
+      "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+      "https://www.alibabacloud.com/help/en/model-studio/models",
+      "https://www.alibabacloud.com/help/en/model-studio/context-cache"
+    ],
+    "notes": [
+      "Top-level prices use the official Chinese Mainland non-thinking base tier.",
+      "thinking_output_price_per_million stores the official thinking-mode output price for the same tier.",
+      "cache_write_price_per_million is the official explicit/session cache-create rate of 125% of standard input price.",
+      "cache_read_price_per_million is the official explicit/session cache-hit rate of 10% of standard input price."
+    ]
+  },
+  "qwen:qwen-turbo": {
+    "provider": "qwen",
+    "model": "qwen-turbo",
+    "currency": "USD",
+    "input_price_per_million": 0.044,
+    "output_price_per_million": 0.087,
+    "thinking_output_price_per_million": 0.431,
+    "cache_read_price_per_million": 0.0088,
+    "pricing_status": "deprecated",
+    "source_urls": [
+      "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+      "https://www.alibabacloud.com/help/en/model-studio/models",
+      "https://www.alibabacloud.com/help/en/model-studio/context-cache"
+    ],
+    "notes": [
+      "Top-level prices use the official Chinese Mainland non-thinking price.",
+      "thinking_output_price_per_million stores the official thinking-mode output price.",
+      "Only implicit cache-hit pricing was publicly confirmed during this research pass, at 20% of input price.",
+      "Official note recommends migrating from Qwen-Turbo to Qwen-Flash."
+    ]
+  },
+  "qwen:qwen3-max": {
+    "provider": "qwen",
+    "model": "qwen3-max",
+    "currency": "USD",
+    "input_price_per_million": 0.359,
+    "output_price_per_million": 1.434,
+    "cache_read_price_per_million": 0.0359,
+    "cache_write_price_per_million": 0.44875,
+    "implicit_cache_read_price_per_million": 0.0718,
+    "pricing_status": "current",
+    "context_pricing_tiers": {
+      "le_32k": {
+        "input_price_per_million": 0.359,
+        "output_price_per_million": 1.434
+      },
+      "gt_32k_le_128k": {
+        "input_price_per_million": 0.574,
+        "output_price_per_million": 2.294
+      },
+      "gt_128k_le_252k": {
+        "input_price_per_million": 1.004,
+        "output_price_per_million": 4.014
+      }
+    },
+    "source_urls": [
+      "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+      "https://www.alibabacloud.com/help/en/model-studio/models",
+      "https://www.alibabacloud.com/help/en/model-studio/context-cache"
+    ],
+    "notes": [
+      "Top-level prices use the official Chinese Mainland base tier.",
+      "cache_write_price_per_million is the official explicit/session cache-create rate of 125% of standard input price.",
+      "cache_read_price_per_million is the official explicit/session cache-hit rate of 10% of standard input price.",
+      "implicit_cache_read_price_per_million stores the official implicit cache-hit rate of 20% of standard input price."
+    ]
+  },
+  "qwen:qwen3.5-flash": {
+    "provider": "qwen",
+    "model": "qwen3.5-flash",
+    "currency": "USD",
+    "input_price_per_million": 0.029,
+    "output_price_per_million": 0.287,
+    "cache_read_price_per_million": 0.0029,
+    "cache_write_price_per_million": 0.03625,
+    "pricing_status": "current",
+    "context_pricing_tiers": {
+      "le_128k": {
+        "input_price_per_million": 0.029,
+        "output_price_per_million": 0.287
+      },
+      "gt_128k_le_256k": {
+        "input_price_per_million": 0.115,
+        "output_price_per_million": 1.147
+      },
+      "gt_256k_le_1m": {
+        "input_price_per_million": 0.172,
+        "output_price_per_million": 1.72
+      }
+    },
+    "source_urls": [
+      "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+      "https://www.alibabacloud.com/help/en/model-studio/models",
+      "https://www.alibabacloud.com/help/en/model-studio/context-cache"
+    ],
+    "notes": [
+      "Top-level prices use the official Chinese Mainland base tier.",
+      "cache_write_price_per_million is the official explicit/session cache-create rate of 125% of standard input price.",
+      "cache_read_price_per_million is the official explicit/session cache-hit rate of 10% of standard input price."
+    ]
+  },
+  "qwen:qwen3.5-plus": {
+    "provider": "qwen",
+    "model": "qwen3.5-plus",
+    "currency": "USD",
+    "input_price_per_million": 0.115,
+    "output_price_per_million": 0.688,
+    "cache_read_price_per_million": 0.0115,
+    "cache_write_price_per_million": 0.14375,
+    "implicit_cache_read_price_per_million": 0.023,
+    "pricing_status": "current",
+    "context_pricing_tiers": {
+      "le_128k": {
+        "input_price_per_million": 0.115,
+        "output_price_per_million": 0.688
+      },
+      "gt_128k_le_256k": {
+        "input_price_per_million": 0.287,
+        "output_price_per_million": 1.72
+      },
+      "gt_256k_le_1m": {
+        "input_price_per_million": 0.573,
+        "output_price_per_million": 3.44
+      }
+    },
+    "source_urls": [
+      "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+      "https://www.alibabacloud.com/help/en/model-studio/models",
+      "https://www.alibabacloud.com/help/en/model-studio/context-cache"
+    ],
+    "notes": [
+      "Top-level prices use the official Chinese Mainland base tier.",
+      "cache_write_price_per_million is the official explicit/session cache-create rate of 125% of standard input price.",
+      "cache_read_price_per_million is the official explicit/session cache-hit rate of 10% of standard input price.",
+      "implicit_cache_read_price_per_million stores the official implicit cache-hit rate of 20% of standard input price."
+    ]
+  },
+  "openai:gpt-4.1": {
+    "provider": "openai",
+    "model": "gpt-4.1",
+    "input_price_per_million": 2.0,
+    "output_price_per_million": 8.0,
+    "cache_read_price_per_million": 0.5,
+    "batch_input_price_per_million": 1.0,
+    "batch_output_price_per_million": 4.0,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://developers.openai.com/api/docs/pricing"
+    ],
+    "notes": [
+      "Batch prices are derived from OpenAI's official 50% Batch API discount statement."
+    ]
+  },
+  "openai:gpt-4.1-mini": {
+    "provider": "openai",
+    "model": "gpt-4.1-mini",
+    "input_price_per_million": 0.4,
+    "output_price_per_million": 1.6,
+    "cache_read_price_per_million": 0.1,
+    "batch_input_price_per_million": 0.2,
+    "batch_output_price_per_million": 0.8,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://developers.openai.com/api/docs/pricing"
+    ],
+    "notes": [
+      "Batch prices are derived from OpenAI's official 50% Batch API discount statement."
+    ]
+  },
+  "openai:gpt-4.1-nano": {
+    "provider": "openai",
+    "model": "gpt-4.1-nano",
+    "input_price_per_million": 0.1,
+    "output_price_per_million": 0.4,
+    "cache_read_price_per_million": 0.025,
+    "batch_input_price_per_million": 0.05,
+    "batch_output_price_per_million": 0.2,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://developers.openai.com/api/docs/pricing"
+    ],
+    "notes": [
+      "Batch prices are derived from OpenAI's official 50% Batch API discount statement."
+    ]
+  },
+  "openai:gpt-4o": {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "input_price_per_million": 2.5,
+    "output_price_per_million": 10.0,
+    "cache_read_price_per_million": 1.25,
+    "batch_input_price_per_million": 1.25,
+    "batch_output_price_per_million": 5.0,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://developers.openai.com/api/docs/pricing",
+      "https://developers.openai.com/api/docs/models/gpt-4o"
+    ],
+    "notes": [
+      "Batch prices are derived from OpenAI's official 50% Batch API discount statement."
+    ]
+  },
+  "openai:gpt-4o-mini": {
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "input_price_per_million": 0.15,
+    "output_price_per_million": 0.6,
+    "cache_read_price_per_million": 0.075,
+    "batch_input_price_per_million": 0.075,
+    "batch_output_price_per_million": 0.3,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://developers.openai.com/api/docs/pricing",
+      "https://developers.openai.com/api/docs/models/gpt-4o-mini"
+    ],
+    "notes": [
+      "Batch prices are derived from OpenAI's official 50% Batch API discount statement."
+    ]
+  },
+  "openai:gpt-5": {
+    "provider": "openai",
+    "model": "gpt-5",
+    "input_price_per_million": 1.25,
+    "output_price_per_million": 10.0,
+    "cache_read_price_per_million": 0.125,
+    "batch_input_price_per_million": 0.625,
+    "batch_output_price_per_million": 5.0,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://developers.openai.com/api/docs/pricing"
+    ],
+    "notes": [
+      "Batch prices are derived from OpenAI's official 50% Batch API discount statement."
+    ]
+  },
+  "openai:gpt-5-mini": {
+    "provider": "openai",
+    "model": "gpt-5-mini",
+    "input_price_per_million": 0.25,
+    "output_price_per_million": 2.0,
+    "cache_read_price_per_million": 0.025,
+    "batch_input_price_per_million": 0.125,
+    "batch_output_price_per_million": 1.0,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://developers.openai.com/api/docs/pricing"
+    ],
+    "notes": [
+      "Batch prices are derived from OpenAI's official 50% Batch API discount statement."
+    ]
+  },
+  "openai:gpt-5-nano": {
+    "provider": "openai",
+    "model": "gpt-5-nano",
+    "input_price_per_million": 0.05,
+    "output_price_per_million": 0.4,
+    "cache_read_price_per_million": 0.005,
+    "batch_input_price_per_million": 0.025,
+    "batch_output_price_per_million": 0.2,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://developers.openai.com/api/docs/pricing"
+    ],
+    "notes": [
+      "Batch prices are derived from OpenAI's official 50% Batch API discount statement."
+    ]
+  },
+  "openai:gpt-5-pro": {
+    "provider": "openai",
+    "model": "gpt-5-pro",
+    "input_price_per_million": 15.0,
+    "output_price_per_million": 120.0,
+    "batch_input_price_per_million": 7.5,
+    "batch_output_price_per_million": 60.0,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://developers.openai.com/api/docs/pricing"
+    ],
+    "notes": [
+      "Cached-input pricing is not publicly listed by OpenAI for this model.",
+      "Batch prices are derived from OpenAI's official 50% Batch API discount statement."
+    ]
+  },
+  "openai:gpt-5.1": {
+    "provider": "openai",
+    "model": "gpt-5.1",
+    "input_price_per_million": 1.25,
+    "output_price_per_million": 10.0,
+    "cache_read_price_per_million": 0.125,
+    "batch_input_price_per_million": 0.625,
+    "batch_output_price_per_million": 5.0,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://developers.openai.com/api/docs/pricing"
+    ],
+    "notes": [
+      "Batch prices are derived from OpenAI's official 50% Batch API discount statement."
+    ]
+  },
+  "openai:gpt-5.2": {
+    "provider": "openai",
+    "model": "gpt-5.2",
+    "input_price_per_million": 1.75,
+    "output_price_per_million": 14.0,
+    "cache_read_price_per_million": 0.175,
+    "batch_input_price_per_million": 0.875,
+    "batch_output_price_per_million": 7.0,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://developers.openai.com/api/docs/pricing"
+    ],
+    "notes": [
+      "Batch prices are derived from OpenAI's official 50% Batch API discount statement."
+    ]
+  },
+  "openai:gpt-5.2-pro": {
+    "provider": "openai",
+    "model": "gpt-5.2-pro",
+    "input_price_per_million": 21.0,
+    "output_price_per_million": 168.0,
+    "batch_input_price_per_million": 10.5,
+    "batch_output_price_per_million": 84.0,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://developers.openai.com/api/docs/pricing"
+    ],
+    "notes": [
+      "Cached-input pricing is not publicly listed by OpenAI for this model.",
+      "Batch prices are derived from OpenAI's official 50% Batch API discount statement."
+    ]
   },
   "openai:gpt-5.4": {
     "provider": "openai",
@@ -35,6 +863,66 @@
         "cache_read_price_per_million": 0.5,
         "output_price_per_million": 22.5
       }
-    }
+    },
+    "pricing_status": "current",
+    "source_urls": [
+      "https://openai.com/api/pricing",
+      "https://developers.openai.com/api/docs/pricing"
+    ],
+    "notes": [
+      "Retained the repository's existing session-tiered structure because the app already supports and tests this pricing mode.",
+      "Short-context tier matches the official public base rate.",
+      "Long-context tier is preserved from the existing bundled file."
+    ]
+  },
+  "openai:gpt-5.4-mini": {
+    "provider": "openai",
+    "model": "gpt-5.4-mini",
+    "input_price_per_million": 0.75,
+    "output_price_per_million": 4.5,
+    "cache_read_price_per_million": 0.075,
+    "batch_input_price_per_million": 0.375,
+    "batch_output_price_per_million": 2.25,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://openai.com/api/pricing",
+      "https://developers.openai.com/api/docs/pricing"
+    ],
+    "notes": [
+      "Batch prices are derived from OpenAI's official 50% Batch API discount statement."
+    ]
+  },
+  "openai:gpt-5.4-nano": {
+    "provider": "openai",
+    "model": "gpt-5.4-nano",
+    "input_price_per_million": 0.2,
+    "output_price_per_million": 1.25,
+    "cache_read_price_per_million": 0.02,
+    "batch_input_price_per_million": 0.1,
+    "batch_output_price_per_million": 0.625,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://openai.com/api/pricing",
+      "https://developers.openai.com/api/docs/pricing"
+    ],
+    "notes": [
+      "Batch prices are derived from OpenAI's official 50% Batch API discount statement."
+    ]
+  },
+  "openai:gpt-5.4-pro": {
+    "provider": "openai",
+    "model": "gpt-5.4-pro",
+    "input_price_per_million": 30.0,
+    "output_price_per_million": 180.0,
+    "batch_input_price_per_million": 15.0,
+    "batch_output_price_per_million": 90.0,
+    "pricing_status": "current",
+    "source_urls": [
+      "https://developers.openai.com/api/docs/pricing"
+    ],
+    "notes": [
+      "Cached-input pricing is not publicly listed by OpenAI for this model.",
+      "Batch prices are derived from OpenAI's official 50% Batch API discount statement."
+    ]
   }
 }

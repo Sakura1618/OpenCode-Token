@@ -145,6 +145,7 @@ def test_enrich_raw_rows_with_pricing_sets_estimated_cost_and_status():
     assert enriched[0]["estimated_cache_read_cost"] == 0.01
     assert enriched[0]["estimated_cache_write_cost"] == 0.01
     assert enriched[0]["estimated_cost"] == 1.02
+    assert enriched[0]["estimated_cost_currency"] == "USD"
     assert enriched[0]["price_status"] == "priced"
     assert enriched[0]["price_source"] == "bundled"
 
@@ -438,17 +439,46 @@ def test_apply_pricing_overlays_adds_estimated_cost_totals_and_counts():
     result = apply_pricing_overlays(datasets)
 
     assert result["summary"]["estimated_cost_total"] == 1.0
+    assert result["summary"]["estimated_cost_totals"] == {"USD": 1.0}
     assert result["summary"]["priced_message_count"] == 1
     assert result["summary"]["unpriced_message_count"] == 1
     assert result["by_model"][0]["estimated_cost_total"] == 1.0
+    assert result["by_model"][0]["estimated_cost_totals"] == {"USD": 1.0}
     assert result["by_model"][0]["priced_message_count"] == 1
     assert result["by_model"][0]["unpriced_message_count"] == 1
     assert result["by_session"][0]["estimated_cost_total"] == 1.0
+    assert result["by_session"][0]["estimated_cost_totals"] == {"USD": 1.0}
     assert result["by_session"][0]["priced_message_count"] == 1
     assert result["by_session"][0]["unpriced_message_count"] == 1
     assert result["by_day"][0]["estimated_cost_total"] == 1.0
+    assert result["by_day"][0]["estimated_cost_totals"] == {"USD": 1.0}
     assert result["by_day"][0]["priced_message_count"] == 1
     assert result["by_day"][0]["unpriced_message_count"] == 1
+
+
+def test_apply_pricing_overlays_separates_mixed_currency_totals():
+    datasets = {
+        "summary": {"message_count": 2},
+        "by_model": [
+            {"provider": "openai", "model": "gpt-4.1-mini"},
+            {"provider": "kimi", "model": "kimi-k2.5"},
+        ],
+        "by_session": [{"session_id": "s1", "session_title": "Demo"}],
+        "by_day": [{"day": "2024-03-09"}],
+        "raw_messages": [
+            {"session_id": "s1", "day": "2024-03-09", "provider": "openai", "model": "gpt-4.1-mini", "estimated_cost": 1.0, "estimated_cost_currency": "USD", "price_status": "priced"},
+            {"session_id": "s1", "day": "2024-03-09", "provider": "kimi", "model": "kimi-k2.5", "estimated_cost": 2.0, "estimated_cost_currency": "CNY", "price_status": "priced"},
+        ],
+    }
+
+    result = apply_pricing_overlays(datasets)
+
+    assert result["summary"]["estimated_cost_total"] is None
+    assert result["summary"]["estimated_cost_totals"] == {"USD": 1.0, "CNY": 2.0}
+    assert result["by_model"][0]["estimated_cost_total"] == 1.0
+    assert result["by_model"][0]["estimated_cost_totals"] == {"USD": 1.0}
+    assert result["by_model"][1]["estimated_cost_total"] == 2.0
+    assert result["by_model"][1]["estimated_cost_totals"] == {"CNY": 2.0}
 
 
 def test_price_loaded_usage_applies_bundled_gpt54_session_tier_to_export_data(monkeypatch):
@@ -467,6 +497,7 @@ def test_price_loaded_usage_applies_bundled_gpt54_session_tier_to_export_data(mo
     priced = price_loaded_usage(datasets)
 
     assert priced["raw_messages"][0]["pricing_tier"] == "long_context"
+    assert priced["raw_messages"][0]["estimated_cost_currency"] == "USD"
     assert priced["summary"]["estimated_cost_total"] == 4.8
 
 
