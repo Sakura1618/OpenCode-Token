@@ -53,6 +53,7 @@ def test_build_raw_message_row_keeps_positive_token_message():
     }
 
     result = build_raw_message_row(row, {"s1": "Demo"})
+    assert result is not None
 
     assert result["session_title"] == "Demo"
     assert result["day"]
@@ -79,6 +80,7 @@ def test_build_raw_message_row_defaults_missing_token_and_cost_fields_safely():
         "data": {"providerID": "OpenAI", "modelID": "gpt-4.1-mini", "tokens": {"total": 5}},
     }
     result = build_raw_message_row(row, {})
+    assert result is not None
     assert result["input_tokens"] == 0
     assert result["output_tokens"] == 0
     assert result["cost"] is None
@@ -305,9 +307,10 @@ def test_export_usage_csvs_writes_legacy_filenames(tmp_path):
     assert (tmp_path / "token_export" / "by_day.csv").exists()
     assert (tmp_path / "token_export" / "raw_messages_with_tokens.csv").exists()
     assert "message_count" in (tmp_path / "token_export" / "summary.csv").read_text(encoding="utf-8-sig")
-    assert "provider,model,message_count,total_tokens,input_tokens,output_tokens,reasoning_tokens,cache_read,cache_write,recorded_cost_total" in (tmp_path / "token_export" / "by_model.csv").read_text(encoding="utf-8-sig")
-    assert "session_id,session_title,message_count,total_tokens,input_tokens,output_tokens,reasoning_tokens,cache_read,cache_write,recorded_cost_total" in (tmp_path / "token_export" / "by_session.csv").read_text(encoding="utf-8-sig")
-    assert "day,message_count,total_tokens,input_tokens,output_tokens,reasoning_tokens,cache_read,cache_write,recorded_cost_total" in (tmp_path / "token_export" / "by_day.csv").read_text(encoding="utf-8-sig")
+    assert "estimated_cost_totals" in (tmp_path / "token_export" / "summary.csv").read_text(encoding="utf-8-sig")
+    assert "provider,model,message_count,total_tokens,input_tokens,output_tokens,reasoning_tokens,cache_read,cache_write,recorded_cost_total,estimated_cost_total,estimated_cost_totals" in (tmp_path / "token_export" / "by_model.csv").read_text(encoding="utf-8-sig")
+    assert "session_id,session_title,message_count,total_tokens,input_tokens,output_tokens,reasoning_tokens,cache_read,cache_write,recorded_cost_total,estimated_cost_total,estimated_cost_totals" in (tmp_path / "token_export" / "by_session.csv").read_text(encoding="utf-8-sig")
+    assert "day,message_count,total_tokens,input_tokens,output_tokens,reasoning_tokens,cache_read,cache_write,recorded_cost_total,estimated_cost_total,estimated_cost_totals" in (tmp_path / "token_export" / "by_day.csv").read_text(encoding="utf-8-sig")
     assert "session_title" in (tmp_path / "token_export" / "raw_messages_with_tokens.csv").read_text(encoding="utf-8-sig")
     assert ",," in (tmp_path / "token_export" / "raw_messages_with_tokens.csv").read_text(encoding="utf-8-sig")
 
@@ -331,6 +334,7 @@ def test_export_usage_csvs_includes_additional_raw_message_fields(tmp_path):
             "mode": "chat",
             "cost": None,
             "estimated_cost": 1.0,
+            "estimated_cost_currency": "USD",
             "estimated_cache_read_cost": 0.1,
             "estimated_cache_write_cost": None,
             "price_status": "priced",
@@ -349,6 +353,7 @@ def test_export_usage_csvs_includes_additional_raw_message_fields(tmp_path):
     export_usage_csvs(tmp_path / "token_export", datasets)
 
     raw_csv = (tmp_path / "token_export" / "raw_messages_with_tokens.csv").read_text(encoding="utf-8-sig")
+    assert "estimated_cost_currency" in raw_csv
     assert "pricing_mode" in raw_csv
     assert "pricing_tier" in raw_csv
     assert "session_tiered" in raw_csv

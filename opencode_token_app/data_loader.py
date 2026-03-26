@@ -33,7 +33,7 @@ def safe_json_loads(text):
         return {}
 
 
-def get_nested(d, *keys, default=0):
+def get_nested(d: Any, *keys: Any, default: Any = 0) -> Any:
     cur = d
     for key in keys:
         if not isinstance(cur, dict) or key not in cur:

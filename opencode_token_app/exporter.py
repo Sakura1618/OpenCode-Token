@@ -1,4 +1,5 @@
 import csv
+import json
 from pathlib import Path
 
 
@@ -13,6 +14,7 @@ CSV_OUTPUTS = {
         "cache_write",
         "recorded_cost_total",
         "estimated_cost_total",
+        "estimated_cost_totals",
         "priced_message_count",
         "unpriced_message_count",
     ]),
@@ -28,6 +30,7 @@ CSV_OUTPUTS = {
         "cache_write",
         "recorded_cost_total",
         "estimated_cost_total",
+        "estimated_cost_totals",
         "priced_message_count",
         "unpriced_message_count",
     ]),
@@ -43,6 +46,7 @@ CSV_OUTPUTS = {
         "cache_write",
         "recorded_cost_total",
         "estimated_cost_total",
+        "estimated_cost_totals",
         "priced_message_count",
         "unpriced_message_count",
     ]),
@@ -57,6 +61,7 @@ CSV_OUTPUTS = {
         "cache_write",
         "recorded_cost_total",
         "estimated_cost_total",
+        "estimated_cost_totals",
         "priced_message_count",
         "unpriced_message_count",
     ]),
@@ -73,6 +78,7 @@ CSV_OUTPUTS = {
         "mode",
         "cost",
         "estimated_cost",
+        "estimated_cost_currency",
         "estimated_cache_read_cost",
         "estimated_cache_write_cost",
         "price_status",
@@ -87,12 +93,18 @@ CSV_OUTPUTS = {
 }
 
 
+def _serialize_cell(value):
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True)
+    return value
+
+
 def _write_csv(path: Path, rows, fieldnames):
     with path.open("w", newline="", encoding="utf-8-sig") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows:
-            writer.writerow(row)
+            writer.writerow({key: _serialize_cell(value) for key, value in row.items()})
 
 
 def _raw_message_fieldnames(rows, fieldnames):
