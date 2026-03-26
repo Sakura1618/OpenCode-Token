@@ -1,0 +1,127 @@
+# OpenCode Token
+
+OpenCode Token 是一个面向 `opencode.db` 的 Python 工具仓库，用来分析消息与 token 使用情况，并以 **GUI 浏览** 和 **CLI 导出** 两种方式提供结果。
+
+这次基线重建后的目标很明确：
+
+- **可读性**：源码、脚本、文档、测试边界清晰
+- **可维护性**：有正式的项目元数据、变更记录和开发约定
+- **可协作性**：仓库内不再混入过程性草稿和低质量 checkpoint
+- **可发布性**：源码包、构建产物和本地生成物边界明确
+
+## 功能概览
+
+- 从 OpenCode SQLite 数据库读取消息、token 和已记录成本
+- 聚合总览、模型、会话、日期四类统计
+- 支持内置价格表、本地价格覆盖、会话分层定价
+- 对多币种预估成本分别汇总，避免错误相加
+- 导出 UTF-8 BOM CSV，便于直接用 Excel 打开
+- 提供桌面 GUI 浏览汇总卡片、图表和分页明细
+
+## 安装
+
+建议使用 Python 3.11+。
+
+仅安装运行依赖：
+
+```bash
+python -m pip install .
+```
+
+安装开发依赖：
+
+```bash
+python -m pip install -e .[dev]
+```
+
+## 使用方式
+
+### 1. 启动 GUI
+
+```bash
+python opencode_token_gui.py
+```
+
+或者在安装后使用控制台命令：
+
+```bash
+opencode-token-gui
+```
+
+默认数据库路径为：
+
+`%USERPROFILE%\.local\share\opencode\opencode.db`
+
+### 2. 导出 CSV
+
+```bash
+python export_opencode_tokens.py <opencode.db路径> [输出目录]
+```
+
+或者在安装后使用：
+
+```bash
+opencode-token-export <opencode.db路径> [输出目录]
+```
+
+未指定输出目录时，默认写入数据库同级目录下的 `token_export/`。
+
+## 价格机制
+
+- 内置价格表：`opencode_token_app/prices.json`
+- 本地覆盖文件：入口文件同目录下的 `prices.local.json`
+- 支持 flat pricing 与 session-tiered pricing
+- 当存在多币种时，统一使用 `estimated_cost_totals` 表达分币种总额
+
+## 当前仓库结构
+
+```text
+.
+├─ opencode_token_app/       # 核心源代码包
+├─ tests/                    # 自动化测试
+├─ docs/                     # 工程与维护文档
+├─ scripts/                  # 维护者便利脚本（不进入发布包）
+├─ export_opencode_tokens.py # CLI 入口
+├─ opencode_token_gui.py     # GUI 入口
+├─ opencode_token_gui.spec   # PyInstaller 构建规格
+├─ pyproject.toml            # 项目元数据与工具配置
+├─ README.md
+├─ LICENSE
+└─ CHANGELOG.md
+```
+
+## 开发与验证
+
+运行测试：
+
+```bash
+python -m pytest
+```
+
+构建 Windows 单文件 GUI：
+
+```bash
+scripts\build.bat
+```
+
+更多信息见：
+
+- `docs/architecture.md`
+- `docs/development.md`
+- `docs/release.md`
+- `CONTRIBUTING.md`
+
+## 发布边界
+
+本仓库刻意区分三类内容：
+
+1. **源码基线**：源码、测试、正式文档、项目元数据
+2. **维护者工具**：`scripts/` 下的本地辅助脚本
+3. **生成物**：`build/`、`token_export/`、缓存文件、本地价格覆盖
+
+其中：
+
+- `.gitignore` 负责忽略本地生成物和缓存
+- `.gitattributes` 负责在 `git archive` 导出时排除 `tests/`、`docs/`、`build/`、`token_export/`、`scripts/`
+
+如果你手工压缩工作区进行发布，需要自行排除这些路径。
