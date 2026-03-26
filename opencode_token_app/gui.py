@@ -20,12 +20,13 @@ from opencode_token_app.viewmodels import build_application_viewmodels
 LABEL_TEXT = {
     "db_path": "数据库路径",
     "browse": "浏览",
-    "reload": "重新加载",
-    "export_csv": "导出 CSV",
+    "load_data": "加载数据",
     "export_dir": "导出目录",
     "filter_day": "日期",
     "filter_provider": "提供方",
     "filter_model": "模型",
+    "previous_page": "上一页",
+    "next_page": "下一页",
     "chart": "图表",
     "daily": "每日",
     "peak_days": "最高 token 七天",
@@ -46,11 +47,11 @@ LABEL_TEXT = {
     "total_tokens_display": "总 token",
     "input_tokens_display": "输入 token",
     "output_tokens_display": "输出 token",
-    "estimated_cost_total": "预估价格（美元）",
-    "estimated_cost_total_display": "预估价格（美元）",
+    "estimated_cost_total": "预估价格",
+    "estimated_cost_total_display": "预估价格",
     "recorded_cost_total": "已记录价格（美元）",
     "recorded_cost_total_display": "已记录价格（美元）",
-    "estimated_cost_display": "预估价格（美元）",
+    "estimated_cost_display": "预估价格",
     "recorded_cost_display": "已记录价格（美元）",
     "price_status_label": "定价状态",
 }
@@ -141,7 +142,8 @@ def build_recent_day_chart_data(rows):
 
     if valid_rows:
         tokens_by_day = {row.get("day", "") or "": row.get("total_tokens", 0) or 0 for row in valid_rows}
-        latest_day = max(_parsed_day(day) for day in tokens_by_day)
+        parsed_days = [parsed for day in tokens_by_day if (parsed := _parsed_day(day)) is not None]
+        latest_day = max(parsed_days)
         recent_rows = []
         for offset in range(6, -1, -1):
             current_day = latest_day - timedelta(days=offset)
@@ -204,9 +206,39 @@ class OpenCodeTokenApp(ttk.Frame):
         self.viewmodels = None
         self.treeviews = {}
         self.charts = {}
+        self.raw_message_page_size = 200
+        self.raw_message_page_index = 0
+        self.raw_message_total_rows = 0
+        self.raw_message_page_count = 0
+        self._initial_load_after_id = None
+        self._initial_load_pending = False
         self.pack(fill="both", expand=True)
         self._build_header()
         self._build_notebook()
+        self._schedule_initial_load()
+
+    def _schedule_initial_load(self):
+        if getattr(self, "_initial_load_pending", False):
+            return
+        self._initial_load_pending = True
+
+        def run_initial_load():
+            if not self._initial_load_pending:
+                return
+            self._initial_load_after_id = None
+            self._initial_load_pending = False
+            self.load_data()
+
+        self._initial_load_after_id = self.master.after_idle(run_initial_load)
+
+    def _clear_initial_load_schedule(self):
+        if not getattr(self, "_initial_load_pending", False):
+            return
+        after_id = getattr(self, "_initial_load_after_id", None)
+        self._initial_load_after_id = None
+        self._initial_load_pending = False
+        if after_id is not None and hasattr(self.master, "after_cancel"):
+            self.master.after_cancel(after_id)
 
     def _build_header(self):
         header = ttk.Frame(self)
@@ -214,11 +246,10 @@ class OpenCodeTokenApp(ttk.Frame):
         ttk.Label(header, text=ui_text("db_path")).grid(row=0, column=0, sticky="w")
         ttk.Entry(header, textvariable=self.db_path_var, width=80).grid(row=0, column=1, sticky="ew", padx=6)
         ttk.Button(header, text=ui_text("browse"), command=self.browse_db).grid(row=0, column=2, padx=4)
-        ttk.Button(header, text=ui_text("reload"), command=self.load_current_db).grid(row=0, column=3, padx=4)
-        ttk.Button(header, text=ui_text("export_csv"), command=self.export_current_csvs).grid(row=0, column=4, padx=4)
+        ttk.Button(header, text=ui_text("load_data"), command=self.load_and_export_data).grid(row=0, column=3, padx=4)
         ttk.Label(header, text=ui_text("export_dir")).grid(row=1, column=0, sticky="w")
-        ttk.Label(header, textvariable=self.export_dir_var).grid(row=1, column=1, columnspan=4, sticky="w", padx=6)
-        ttk.Label(header, textvariable=self.status_var).grid(row=2, column=0, columnspan=5, sticky="w")
+        ttk.Label(header, textvariable=self.export_dir_var).grid(row=1, column=1, columnspan=3, sticky="w", padx=6)
+        ttk.Label(header, textvariable=self.status_var).grid(row=2, column=0, columnspan=4, sticky="w")
         header.columnconfigure(1, weight=1)
 
     def _build_notebook(self):
@@ -296,6 +327,26 @@ class OpenCodeTokenApp(ttk.Frame):
         ttk.Entry(filters).grid(row=0, column=3, padx=4)
         ttk.Label(filters, text=ui_text("filter_model")).grid(row=0, column=4, padx=4)
         ttk.Entry(filters).grid(row=0, column=5, padx=4)
+        controls = ttk.Frame(frame)
+        controls.pack(fill="x", padx=8, pady=(0, 4))
+        self.raw_page_label_var = tk.StringVar(value="暂无数据")
+        self.raw_range_label_var = tk.StringVar(value="当前没有可显示的明细")
+        self.raw_message_prev_button = ttk.Button(
+            controls,
+            text=ui_text("previous_page"),
+            command=self.show_previous_raw_message_page,
+            state="disabled",
+        )
+        self.raw_message_prev_button.pack(side="left")
+        self.raw_message_next_button = ttk.Button(
+            controls,
+            text=ui_text("next_page"),
+            command=self.show_next_raw_message_page,
+            state="disabled",
+        )
+        self.raw_message_next_button.pack(side="left", padx=(4, 8))
+        ttk.Label(controls, textvariable=self.raw_page_label_var).pack(side="left")
+        ttk.Label(controls, textvariable=self.raw_range_label_var).pack(side="left", padx=(8, 0))
         columns = ["provider", "model", "role", "time_created_text", "total_tokens_display", "input_tokens_display", "output_tokens_display", "estimated_cost_display", "recorded_cost_display", "price_status_label"]
         self.treeviews["raw_messages"] = self._create_treeview(frame, columns)
 
@@ -317,21 +368,50 @@ class OpenCodeTokenApp(ttk.Frame):
             self.export_dir_var.set(str(Path(selected).resolve().parent / "token_export"))
 
     def load_current_db(self):
+        self.load_and_export_data()
+
+    def load_data(self):
+        self._load_data(should_export=False)
+
+    def load_and_export_data(self):
+        self._load_data(should_export=True)
+
+    def _load_data(self, should_export):
+        self._clear_initial_load_schedule()
         db_path = Path(self.db_path_var.get()).expanduser()
-        self.export_dir_var.set(str(db_path.resolve().parent / "token_export"))
+        export_dir = db_path.resolve().parent / "token_export"
+        self.export_dir_var.set(str(export_dir))
         if not db_path.exists():
             self.status_var.set("未找到数据库；请手动选择文件。")
             return
+
         try:
             datasets = load_usage_from_db(db_path)
             datasets = price_loaded_usage(datasets, entry_path=self.entry_path)
-            self.viewmodels = build_application_viewmodels(datasets)
-            warnings = self._populate_view()
-            if not warnings:
-                self.status_var.set("已加载")
+            viewmodels = build_application_viewmodels(datasets)
         except Exception as exc:  # pragma: no cover
             self.status_var.set(f"加载失败：{exc}")
             messagebox.showerror("加载失败", f"加载失败：{exc}")
+            return
+
+        self.viewmodels = viewmodels
+        self._reset_raw_message_pagination()
+        warnings = self._populate_view()
+
+        if should_export:
+            try:
+                out_dir = export_usage_csvs(export_dir, datasets)
+                self.export_dir_var.set(str(out_dir))
+            except Exception as exc:  # pragma: no cover
+                self.status_var.set(f"导出失败：{exc}")
+                messagebox.showerror("导出失败", f"导出失败：{exc}")
+                return
+            if not warnings:
+                self.status_var.set(f"已加载并导出到 {out_dir}")
+            return
+
+        if not warnings:
+            self.status_var.set("已加载数据")
 
     def _populate_view(self):
         viewmodels = self.viewmodels
@@ -346,8 +426,112 @@ class OpenCodeTokenApp(ttk.Frame):
         self._fill_tree(self.treeviews["models"], viewmodels["models"])
         self._fill_tree(self.treeviews["days"], viewmodels["days"])
         self._fill_tree(self.treeviews["sessions"], viewmodels["sessions"])
-        self._fill_tree(self.treeviews["raw_messages"], viewmodels["raw_messages"])
+        self._render_current_raw_message_page()
         return self._refresh_charts()
+
+    def _raw_message_pagination_info(self, reset_index=False):
+        rows = []
+        if self.viewmodels is not None:
+            rows = self.viewmodels.get("raw_messages", [])
+
+        page_size = getattr(self, "raw_message_page_size", 200)
+        try:
+            page_size = int(page_size)
+        except (TypeError, ValueError):
+            page_size = 200
+        if page_size <= 0:
+            page_size = 200
+
+        total_rows = len(rows)
+        page_count = (total_rows + page_size - 1) // page_size if total_rows else 0
+
+        if reset_index:
+            page_index = 0
+        else:
+            page_index = getattr(self, "raw_message_page_index", 0)
+            try:
+                page_index = int(page_index)
+            except (TypeError, ValueError):
+                page_index = 0
+
+        if page_count == 0:
+            page_index = 0
+        else:
+            page_index = min(max(page_index, 0), page_count - 1)
+
+        self.raw_message_page_size = page_size
+        self.raw_message_page_index = page_index
+        self.raw_message_total_rows = total_rows
+        self.raw_message_page_count = page_count
+        return {
+            "rows": rows,
+            "page_index": page_index,
+            "page_size": page_size,
+            "total_rows": total_rows,
+            "page_count": page_count,
+        }
+
+    def _reset_raw_message_pagination(self):
+        self._raw_message_pagination_info(reset_index=True)
+
+    def _current_raw_message_rows(self):
+        pagination = self._raw_message_pagination_info()
+        start = pagination["page_index"] * pagination["page_size"]
+        end = start + pagination["page_size"]
+        return pagination["rows"][start:end]
+
+    def _render_current_raw_message_page(self):
+        self._fill_tree(self.treeviews["raw_messages"], self._current_raw_message_rows())
+        self._refresh_raw_message_pagination()
+
+    def _render_raw_message_page(self):
+        self._render_current_raw_message_page()
+
+    def _change_raw_message_page(self, delta):
+        self._raw_message_pagination_info()
+        target_index = self.raw_message_page_index
+        try:
+            target_index += int(delta)
+        except (TypeError, ValueError):
+            pass
+        if self.raw_message_page_count == 0:
+            target_index = 0
+        else:
+            target_index = min(max(target_index, 0), self.raw_message_page_count - 1)
+        self.raw_message_page_index = target_index
+        self._render_current_raw_message_page()
+
+    def _refresh_raw_message_pagination(self):
+        self._raw_message_pagination_info()
+        page_label_var = getattr(self, "raw_page_label_var", None)
+        range_label_var = getattr(self, "raw_range_label_var", None)
+        prev_button = getattr(self, "raw_message_prev_button", None)
+        next_button = getattr(self, "raw_message_next_button", None)
+        if page_label_var is None and range_label_var is None and prev_button is None and next_button is None:
+            return
+        if self.raw_message_page_count:
+            start = self.raw_message_page_index * self.raw_message_page_size + 1
+            end = min(start + self.raw_message_page_size - 1, self.raw_message_total_rows)
+            page_text = f"第 {self.raw_message_page_index + 1} / {self.raw_message_page_count} 页"
+            range_text = f"显示第 {start} - {end} 条，共 {self.raw_message_total_rows} 条"
+        else:
+            page_text = "暂无数据"
+            range_text = "当前没有可显示的明细"
+        if page_label_var is not None:
+            page_label_var.set(page_text)
+        if range_label_var is not None:
+            range_label_var.set(range_text)
+        if prev_button is not None:
+            prev_button.configure(state="normal" if self.raw_message_page_index > 0 else "disabled")
+        if next_button is not None:
+            has_next_page = self.raw_message_page_index + 1 < self.raw_message_page_count
+            next_button.configure(state="normal" if has_next_page else "disabled")
+
+    def show_previous_raw_message_page(self):
+        self._change_raw_message_page(-1)
+
+    def show_next_raw_message_page(self):
+        self._change_raw_message_page(1)
 
     def _register_chart(self, name, figure, canvas):
         self.charts[name] = {"figure": figure, "canvas": canvas}
@@ -542,16 +726,4 @@ class OpenCodeTokenApp(ttk.Frame):
             tree.insert("", "end", values=[row.get(column, "") for column in columns])
 
     def export_current_csvs(self):
-        db_path = Path(self.db_path_var.get()).expanduser()
-        if not db_path.exists():
-            self.status_var.set("未找到数据库；无法导出。")
-            return
-        try:
-            datasets = load_usage_from_db(db_path)
-            datasets = price_loaded_usage(datasets, entry_path=self.entry_path)
-            out_dir = export_usage_csvs(db_path.resolve().parent / "token_export", datasets)
-            self.export_dir_var.set(str(out_dir))
-            self.status_var.set(f"已导出到 {out_dir}")
-        except Exception as exc:  # pragma: no cover
-            self.status_var.set(f"导出失败：{exc}")
-            messagebox.showerror("导出失败", f"导出失败：{exc}")
+        self.load_and_export_data()
