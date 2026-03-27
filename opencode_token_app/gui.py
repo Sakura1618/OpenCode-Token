@@ -1,14 +1,16 @@
 from datetime import datetime, timedelta
 import os
 from pathlib import Path
+import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+from typing import TypeAlias
 
 from opencode_token_app.charts import (
     attach_canvas,
     create_figure,
-    plot_horizontal_bar_chart,
-    plot_line_chart,
+    plot_stacked_bar_chart,
+    plot_stacked_horizontal_bar_chart,
     plot_pie_chart,
 )
 from opencode_token_app.data_loader import load_usage_from_db
@@ -43,10 +45,14 @@ LABEL_TEXT = {
     "total_tokens": "总 token",
     "input_tokens": "输入 token",
     "output_tokens": "输出 token",
+    "cache_read": "缓存输入 token",
+    "cache_write": "缓存输出 token",
     "reasoning_tokens": "推理 token",
     "total_tokens_display": "总 token",
     "input_tokens_display": "输入 token",
     "output_tokens_display": "输出 token",
+    "cache_read_display": "缓存输入 token",
+    "cache_write_display": "缓存输出 token",
     "estimated_cost_total": "预估价格",
     "estimated_cost_total_display": "预估价格",
     "recorded_cost_total": "已记录价格（美元）",
@@ -79,6 +85,26 @@ def scale_tokens_to_millions(values):
     return scaled
 
 
+TOKEN_BREAKDOWN_FIELDS = (
+    "input_tokens",
+    "output_tokens",
+    "cache_read",
+    "cache_write",
+)
+
+PaddingValue: TypeAlias = float | str | tuple[float | str, float | str]
+
+
+def build_token_breakdown_series(rows, labels, *, reverse=False):
+    working_rows = list(rows)
+    if reverse:
+        working_rows.reverse()
+    return {
+        field: scale_tokens_to_millions([row.get(field, 0) or 0 for row in working_rows])
+        for field in TOKEN_BREAKDOWN_FIELDS
+    }
+
+
 def _parsed_day(day):
     if isinstance(day, str):
         try:
@@ -105,20 +131,17 @@ def _descending_day_sort_key(day):
 def build_top_model_chart_data(rows):
     sorted_rows = sorted(rows, key=lambda row: row.get("total_tokens", 0) or 0, reverse=True)[:10]
     labels = []
-    values = []
     for row in sorted_rows:
         provider = row.get("provider", "") or ""
         model = row.get("model", "") or ""
         labels.append(f"{provider}/{model}" if provider and model else provider or model)
-        values.append(row.get("total_tokens", 0) or 0)
-    return labels, values
+    return labels, build_token_breakdown_series(sorted_rows, labels)
 
 
 def build_day_chart_data(rows):
     sorted_rows = sorted(rows, key=lambda row: _ascending_day_sort_key(row.get("day", "") or ""))
     labels = [format_day_label(row.get("day", "") or "") for row in sorted_rows]
-    values = [row.get("total_tokens", 0) or 0 for row in sorted_rows]
-    return labels, values
+    return labels, build_token_breakdown_series(sorted_rows, labels)
 
 
 def format_day_label(day):
@@ -141,14 +164,18 @@ def build_recent_day_chart_data(rows):
             malformed_rows.append(row)
 
     if valid_rows:
-        tokens_by_day = {row.get("day", "") or "": row.get("total_tokens", 0) or 0 for row in valid_rows}
-        parsed_days = [parsed for day in tokens_by_day if (parsed := _parsed_day(day)) is not None]
+        rows_by_day = {row.get("day", "") or "": row for row in valid_rows}
+        parsed_days = [parsed for day in rows_by_day if (parsed := _parsed_day(day)) is not None]
         latest_day = max(parsed_days)
         recent_rows = []
         for offset in range(6, -1, -1):
             current_day = latest_day - timedelta(days=offset)
             day_key = current_day.strftime("%Y-%m-%d")
-            recent_rows.append({"day": day_key, "total_tokens": tokens_by_day.get(day_key, 0)})
+            source_row = rows_by_day.get(day_key)
+            if source_row is None:
+                recent_rows.append({"day": day_key, "total_tokens": 0})
+            else:
+                recent_rows.append({"day": day_key, **source_row})
     else:
         recent_rows = []
 
@@ -159,8 +186,7 @@ def build_recent_day_chart_data(rows):
         )
 
     labels = [format_day_label(row.get("day", "") or "") for row in recent_rows]
-    values = [row.get("total_tokens", 0) or 0 for row in recent_rows]
-    return labels, values
+    return labels, build_token_breakdown_series(recent_rows, labels)
 
 
 def build_peak_day_chart_data(rows):
@@ -173,8 +199,7 @@ def build_peak_day_chart_data(rows):
         reverse=True,
     )[:7]
     labels = [format_day_label(row.get("day", "") or "") for row in sorted_rows]
-    values = [row.get("total_tokens", 0) or 0 for row in sorted_rows]
-    return labels, values
+    return labels, build_token_breakdown_series(sorted_rows, labels)
 
 
 def build_top_session_chart_data(rows):
@@ -183,15 +208,15 @@ def build_top_session_chart_data(rows):
         (row.get("session_title", "") or row.get("session_id", "") or "")
         for row in sorted_rows
     ]
-    values = [row.get("total_tokens", 0) or 0 for row in sorted_rows]
-    return labels, values
+    return labels, build_token_breakdown_series(sorted_rows, labels)
 
 
 def build_overview_composition_chart_data(cards):
-    return ["输入 token", "输出 token", "推理 token"], [
+    return ["输入 token", "输出 token", "缓存输入 token", "缓存输出 token"], [
         cards.get("input_tokens", 0) or 0,
         cards.get("output_tokens", 0) or 0,
-        cards.get("reasoning_tokens", 0) or 0,
+        cards.get("cache_read", 0) or 0,
+        cards.get("cache_write", 0) or 0,
     ]
 
 
@@ -212,6 +237,8 @@ class OpenCodeTokenApp(ttk.Frame):
         self.raw_message_page_count = 0
         self._initial_load_after_id = None
         self._initial_load_pending = False
+        self._initial_load_thread = None
+        self._initial_load_result = None
         self.pack(fill="both", expand=True)
         self._build_header()
         self._build_notebook()
@@ -227,9 +254,39 @@ class OpenCodeTokenApp(ttk.Frame):
                 return
             self._initial_load_after_id = None
             self._initial_load_pending = False
-            self.load_data()
+            self._start_initial_load_thread()
 
-        self._initial_load_after_id = self.master.after_idle(run_initial_load)
+        self._initial_load_after_id = self.master.after(10, run_initial_load)
+
+    def _start_initial_load_thread(self):
+        if self._initial_load_thread is not None and self._initial_load_thread.is_alive():
+            return
+        request = self._current_load_request()
+        self._initial_load_result = None
+
+        def run_background_load():
+            self._initial_load_result = self._load_data_for_display(request)
+
+        thread = threading.Thread(
+            target=run_background_load,
+            name="opencode-initial-load",
+            daemon=True,
+        )
+        self._initial_load_thread = thread
+        thread.start()
+        self._poll_initial_load_thread(thread)
+
+    def _poll_initial_load_thread(self, thread):
+        if self._initial_load_thread is not thread:
+            return
+        if thread.is_alive():
+            self.master.after(10, lambda: self._poll_initial_load_thread(thread))
+            return
+        result = self._initial_load_result
+        self._initial_load_thread = None
+        self._initial_load_result = None
+        if result is not None:
+            self._apply_load_data_result(result)
 
     def _clear_initial_load_schedule(self):
         if not getattr(self, "_initial_load_pending", False):
@@ -269,15 +326,24 @@ class OpenCodeTokenApp(ttk.Frame):
     def _build_overview_tab(self):
         frame = self.tabs["总览"]
         self.overview_cards = ttk.Frame(frame)
-        self.overview_cards.pack(fill="x", padx=8, pady=8)
+        self.overview_cards.pack(fill="x", padx=8, pady=(8, 4))
         self.overview_card_labels = {}
-        for idx, key in enumerate(["total_tokens", "input_tokens", "output_tokens", "reasoning_tokens", "estimated_cost_total", "recorded_cost_total"]):
+        for idx, key in enumerate(["total_tokens", "input_tokens", "output_tokens", "cache_read", "cache_write", "reasoning_tokens", "estimated_cost_total", "recorded_cost_total"]):
             label = ttk.Label(self.overview_cards, text=f"{ui_text(key)}: -")
-            label.grid(row=0, column=idx, padx=4, sticky="w")
+            row, column = divmod(idx, 4)
+            label.grid(row=row, column=column, padx=4, sticky="w")
             self.overview_card_labels[key] = label
 
+        self.overview_table = self._create_treeview(
+            frame,
+            ["day", "total_tokens_display", "estimated_cost_display"],
+            height=5,
+            expand=False,
+            pady=(0, 4),
+        )
+
         self.overview_chart_area = ttk.Frame(frame)
-        self.overview_chart_area.pack(fill="both", expand=True, padx=8, pady=8)
+        self.overview_chart_area.pack(fill="both", expand=True, padx=8, pady=(4, 8))
         overview_chart_specs = [
             ("overview_daily", "daily"),
             ("overview_peak_days", "peak_days"),
@@ -298,8 +364,6 @@ class OpenCodeTokenApp(ttk.Frame):
             if canvas is not None:
                 canvas.get_tk_widget().pack(fill="both", expand=True)
 
-        self.overview_table = self._create_treeview(frame, ["day", "total_tokens_display", "estimated_cost_display"])
-
     def _build_analysis_tab(self, title, key):
         frame = self.tabs[title]
         chart_frame = ttk.LabelFrame(frame, text=ui_text("chart"))
@@ -310,11 +374,11 @@ class OpenCodeTokenApp(ttk.Frame):
         if canvas is not None:
             canvas.get_tk_widget().pack(fill="both", expand=True)
         if key == "models":
-            columns = ["provider", "model", "message_count", "total_tokens_display", "estimated_cost_display", "recorded_cost_display", "price_status_label"]
+            columns = ["provider", "model", "message_count", "total_tokens_display", "input_tokens_display", "output_tokens_display", "cache_read_display", "cache_write_display", "estimated_cost_display", "recorded_cost_display", "price_status_label"]
         elif key == "days":
-            columns = ["day", "message_count", "total_tokens_display", "estimated_cost_display", "recorded_cost_display"]
+            columns = ["day", "message_count", "total_tokens_display", "input_tokens_display", "output_tokens_display", "cache_read_display", "cache_write_display", "estimated_cost_display", "recorded_cost_display"]
         else:
-            columns = ["session_id", "session_title", "message_count", "total_tokens_display", "estimated_cost_display", "recorded_cost_display"]
+            columns = ["session_id", "session_title", "message_count", "total_tokens_display", "input_tokens_display", "output_tokens_display", "cache_read_display", "cache_write_display", "estimated_cost_display", "recorded_cost_display"]
         self.treeviews[key] = self._create_treeview(frame, columns)
 
     def _build_raw_tab(self):
@@ -347,15 +411,15 @@ class OpenCodeTokenApp(ttk.Frame):
         self.raw_message_next_button.pack(side="left", padx=(4, 8))
         ttk.Label(controls, textvariable=self.raw_page_label_var).pack(side="left")
         ttk.Label(controls, textvariable=self.raw_range_label_var).pack(side="left", padx=(8, 0))
-        columns = ["provider", "model", "role", "time_created_text", "total_tokens_display", "input_tokens_display", "output_tokens_display", "estimated_cost_display", "recorded_cost_display", "price_status_label"]
+        columns = ["provider", "model", "role", "time_created_text", "total_tokens_display", "input_tokens_display", "output_tokens_display", "cache_read_display", "cache_write_display", "estimated_cost_display", "recorded_cost_display", "price_status_label"]
         self.treeviews["raw_messages"] = self._create_treeview(frame, columns)
 
-    def _create_treeview(self, parent, columns):
-        tree = ttk.Treeview(parent, columns=columns, show="headings", height=8)
+    def _create_treeview(self, parent, columns, *, height=8, expand=True, padx: PaddingValue = 8, pady: PaddingValue = 8):
+        tree = ttk.Treeview(parent, columns=columns, show="headings", height=height)
         for column in columns:
             tree.heading(column, text=ui_text(column))
             tree.column(column, width=120, stretch=True)
-        tree.pack(fill="both", expand=True, padx=8, pady=8)
+        tree.pack(fill="both", expand=expand, padx=padx, pady=pady)
         return tree
 
     def browse_db(self):
@@ -378,21 +442,51 @@ class OpenCodeTokenApp(ttk.Frame):
 
     def _load_data(self, should_export):
         self._clear_initial_load_schedule()
+        self._initial_load_thread = None
+        self._initial_load_result = None
+        result = self._load_data_for_display(self._current_load_request())
+        self._apply_load_data_result(result, should_export=should_export)
+
+    def _current_load_request(self):
         db_path = Path(self.db_path_var.get()).expanduser()
-        export_dir = db_path.resolve().parent / "token_export"
-        self.export_dir_var.set(str(export_dir))
+        return {
+            "db_path": db_path,
+            "export_dir": db_path.resolve().parent / "token_export",
+        }
+
+    def _load_data_for_display(self, request):
+        db_path = request["db_path"]
+        export_dir = request["export_dir"]
         if not db_path.exists():
-            self.status_var.set("未找到数据库；请手动选择文件。")
-            return
+            return {"export_dir": export_dir, "missing": True}
 
         try:
             datasets = load_usage_from_db(db_path)
             datasets = price_loaded_usage(datasets, entry_path=self.entry_path)
             viewmodels = build_application_viewmodels(datasets)
         except Exception as exc:  # pragma: no cover
+            return {"export_dir": export_dir, "error": exc}
+
+        return {
+            "export_dir": export_dir,
+            "datasets": datasets,
+            "viewmodels": viewmodels,
+        }
+
+    def _apply_load_data_result(self, result, should_export=False):
+        export_dir = result["export_dir"]
+        self.export_dir_var.set(str(export_dir))
+        if result.get("missing"):
+            self.status_var.set("未找到数据库；请手动选择文件。")
+            return
+        if result.get("error") is not None:
+            exc = result["error"]
             self.status_var.set(f"加载失败：{exc}")
             messagebox.showerror("加载失败", f"加载失败：{exc}")
             return
+
+        datasets = result["datasets"]
+        viewmodels = result["viewmodels"]
 
         self.viewmodels = viewmodels
         self._reset_raw_message_pagination()
@@ -587,13 +681,13 @@ class OpenCodeTokenApp(ttk.Frame):
             if viewmodels is None:
                 return
             overview = viewmodels["overview"]
-            day_labels, day_values = build_recent_day_chart_data(overview.get("daily_rows", []))
+            day_labels, day_series = build_recent_day_chart_data(overview.get("daily_rows", []))
             self._draw_chart(
                 "overview_daily",
-                plot_line_chart,
+                plot_stacked_bar_chart,
                 title="每日 token",
                 labels=day_labels,
-                values=scale_tokens_to_millions(day_values),
+                series=day_series,
                 ylabel="token（M）",
             )
         except ChartRefreshError:
@@ -607,13 +701,13 @@ class OpenCodeTokenApp(ttk.Frame):
             if viewmodels is None:
                 return
             overview = viewmodels["overview"]
-            model_labels, model_values = build_peak_day_chart_data(overview.get("daily_rows", []))
+            model_labels, model_series = build_peak_day_chart_data(overview.get("daily_rows", []))
             self._draw_chart(
                 "overview_peak_days",
-                plot_horizontal_bar_chart,
+                plot_stacked_horizontal_bar_chart,
                 title="最高 token 七天",
                 labels=model_labels,
-                values=scale_tokens_to_millions(model_values),
+                series=model_series,
                 xlabel="token（M）",
             )
         except ChartRefreshError:
@@ -626,13 +720,13 @@ class OpenCodeTokenApp(ttk.Frame):
             viewmodels = self.viewmodels
             if viewmodels is None:
                 return
-            labels, values = build_top_model_chart_data(viewmodels.get("models", []))
+            labels, series = build_top_model_chart_data(viewmodels.get("models", []))
             self._draw_chart(
                 "overview_models",
-                plot_horizontal_bar_chart,
+                plot_stacked_horizontal_bar_chart,
                 title="热门模型",
                 labels=labels,
-                values=scale_tokens_to_millions(values),
+                series=series,
                 xlabel="token（M）",
             )
         except ChartRefreshError:
@@ -666,13 +760,13 @@ class OpenCodeTokenApp(ttk.Frame):
             viewmodels = self.viewmodels
             if viewmodels is None:
                 return
-            labels, values = build_top_model_chart_data(viewmodels.get("models", []))
+            labels, series = build_top_model_chart_data(viewmodels.get("models", []))
             self._draw_chart(
                 "models",
-                plot_horizontal_bar_chart,
+                plot_stacked_horizontal_bar_chart,
                 title="热门模型",
                 labels=labels,
-                values=scale_tokens_to_millions(values),
+                series=series,
                 xlabel="token（M）",
             )
         except ChartRefreshError:
@@ -685,13 +779,13 @@ class OpenCodeTokenApp(ttk.Frame):
             viewmodels = self.viewmodels
             if viewmodels is None:
                 return
-            labels, values = build_day_chart_data(viewmodels.get("days", []))
+            labels, series = build_day_chart_data(viewmodels.get("days", []))
             self._draw_chart(
                 "days",
-                plot_line_chart,
+                plot_stacked_bar_chart,
                 title="每日 token",
                 labels=labels,
-                values=scale_tokens_to_millions(values),
+                series=series,
                 ylabel="token（M）",
             )
         except ChartRefreshError:
@@ -704,13 +798,13 @@ class OpenCodeTokenApp(ttk.Frame):
             viewmodels = self.viewmodels
             if viewmodels is None:
                 return
-            labels, values = build_top_session_chart_data(viewmodels.get("sessions", []))
+            labels, series = build_top_session_chart_data(viewmodels.get("sessions", []))
             self._draw_chart(
                 "sessions",
-                plot_horizontal_bar_chart,
+                plot_stacked_horizontal_bar_chart,
                 title="热门会话",
                 labels=labels,
-                values=scale_tokens_to_millions(values),
+                series=series,
                 xlabel="token（M）",
             )
         except ChartRefreshError:

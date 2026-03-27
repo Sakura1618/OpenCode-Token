@@ -20,6 +20,14 @@ CJK_FONT_CANDIDATES = [
 ]
 
 
+TOKEN_SERIES_STYLES = {
+    "input_tokens": {"label": "输入 token", "color": "#4F46E5"},
+    "output_tokens": {"label": "输出 token", "color": "#F59E0B"},
+    "cache_read": {"label": "缓存输入 token", "color": "#10B981"},
+    "cache_write": {"label": "缓存输出 token", "color": "#EF4444"},
+}
+
+
 def configure_matplotlib_fonts():
     if matplotlib is None:
         return
@@ -61,6 +69,16 @@ def _validate_xy_series(labels, values):
 def _validate_pie_series(labels, values):
     if len(labels) != len(values):
         raise ValueError("labels and values must be the same length")
+
+
+def _validate_stacked_series(labels, series):
+    for values in series.values():
+        if len(labels) != len(values):
+            raise ValueError("labels and stacked series values must be the same length")
+
+
+def _series_total(series):
+    return sum(sum(value for value in values if value) for values in series.values())
 
 
 def show_empty_state(axis, title, message="无数据"):
@@ -106,6 +124,59 @@ def plot_horizontal_bar_chart(figure, title, labels, values, xlabel=""):
     figure.tight_layout()
 
 
+def plot_stacked_bar_chart(figure, title, labels, series, ylabel=""):
+    axis = clear_figure(figure)
+    if axis is None:
+        return
+    _validate_stacked_series(labels, series)
+    if not labels or not series or _series_total(series) <= 0:
+        show_empty_state(axis, title)
+        figure.tight_layout()
+        return
+
+    positions = list(range(len(labels)))
+    bottoms = [0.0] * len(labels)
+    for field, values in series.items():
+        style = TOKEN_SERIES_STYLES.get(field, {"label": field, "color": None})
+        axis.bar(positions, values, bottom=bottoms, label=style["label"], color=style["color"])
+        bottoms = [bottom + value for bottom, value in zip(bottoms, values)]
+
+    axis.set_xticks(positions)
+    axis.set_xticklabels(labels)
+    axis.set_title(title)
+    if ylabel:
+        axis.set_ylabel(ylabel)
+    axis.legend(loc="best")
+    figure.tight_layout()
+
+
+def plot_stacked_horizontal_bar_chart(figure, title, labels, series, xlabel=""):
+    axis = clear_figure(figure)
+    if axis is None:
+        return
+    _validate_stacked_series(labels, series)
+    if not labels or not series or _series_total(series) <= 0:
+        show_empty_state(axis, title)
+        figure.tight_layout()
+        return
+
+    positions = list(range(len(labels)))
+    lefts = [0.0] * len(labels)
+    for field, values in series.items():
+        style = TOKEN_SERIES_STYLES.get(field, {"label": field, "color": None})
+        axis.barh(positions, values, left=lefts, label=style["label"], color=style["color"])
+        lefts = [left + value for left, value in zip(lefts, values)]
+
+    axis.set_yticks(positions)
+    axis.set_yticklabels(labels)
+    axis.invert_yaxis()
+    axis.set_title(title)
+    if xlabel:
+        axis.set_xlabel(xlabel)
+    axis.legend(loc="best")
+    figure.tight_layout()
+
+
 def plot_pie_chart(figure, title, labels, values):
     axis = clear_figure(figure)
     if axis is None:
@@ -117,6 +188,10 @@ def plot_pie_chart(figure, title, labels, values):
         figure.tight_layout()
         return
     filtered_labels, filtered_values = zip(*filtered)
-    axis.pie(filtered_values, labels=filtered_labels, autopct="%1.0f%%")
+    colors = []
+    for label in filtered_labels:
+        matching_style = next((style for style in TOKEN_SERIES_STYLES.values() if style["label"] == label), None)
+        colors.append(None if matching_style is None else matching_style["color"])
+    axis.pie(filtered_values, labels=filtered_labels, autopct="%1.0f%%", colors=colors)
     axis.set_title(title)
     figure.tight_layout()

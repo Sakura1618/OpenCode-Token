@@ -46,7 +46,7 @@ def _price_status_label(status):
 
 def build_overview_viewmodel(datasets):
     summary = dict(datasets["summary"])
-    for field in ("total_tokens", "input_tokens", "output_tokens", "reasoning_tokens"):
+    for field in ("total_tokens", "input_tokens", "output_tokens", "cache_read", "cache_write", "reasoning_tokens"):
         summary[f"{field}_display"] = format_token_millions(summary.get(field))
     summary["estimated_cost_total_display"] = _format_cost_totals(
         summary.get("estimated_cost_totals"),
@@ -64,6 +64,10 @@ def _decorate_aggregate_rows(rows):
     for row in rows:
         new_row = dict(row)
         new_row["total_tokens_display"] = format_token_millions(row.get("total_tokens"))
+        new_row["input_tokens_display"] = format_token_millions(row.get("input_tokens"))
+        new_row["output_tokens_display"] = format_token_millions(row.get("output_tokens"))
+        new_row["cache_read_display"] = format_token_millions(row.get("cache_read"))
+        new_row["cache_write_display"] = format_token_millions(row.get("cache_write"))
         new_row["estimated_cost_display"] = _format_cost_totals(
             row.get("estimated_cost_totals"),
             row.get("estimated_cost_total"),
@@ -84,6 +88,8 @@ def _decorate_raw_rows(rows):
         new_row["total_tokens_display"] = format_token_millions(row.get("total_tokens"))
         new_row["input_tokens_display"] = format_token_millions(row.get("input_tokens"))
         new_row["output_tokens_display"] = format_token_millions(row.get("output_tokens"))
+        new_row["cache_read_display"] = format_token_millions(row.get("cache_read"))
+        new_row["cache_write_display"] = format_token_millions(row.get("cache_write"))
         new_row["estimated_cost_display"] = _format_cost(row.get("estimated_cost"), row.get("estimated_cost_currency") or "USD")
         new_row["recorded_cost_display"] = _format_cost(row.get("cost"))
         new_row["price_status_label"] = _price_status_label(row.get("price_status"))

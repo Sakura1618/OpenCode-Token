@@ -17,7 +17,7 @@ from opencode_token_app.viewmodels import (
 
 def test_build_overview_viewmodel_returns_cards_and_chart_rows():
     datasets = {
-        "summary": {"total_tokens": 100, "input_tokens": 40, "output_tokens": 60, "reasoning_tokens": 10, "estimated_cost_total": 1.5, "recorded_cost_total": 1.2},
+        "summary": {"total_tokens": 100, "input_tokens": 40, "output_tokens": 60, "cache_read": 20, "cache_write": 5, "reasoning_tokens": 10, "estimated_cost_total": 1.5, "recorded_cost_total": 1.2},
         "by_model": [{"provider": "OpenAI", "model": "gpt-4.1-mini", "total_tokens": 100, "estimated_cost_total": 1.5}],
         "by_day": [{"day": "2024-03-09", "total_tokens": 100, "estimated_cost_total": 1.5}],
     }
@@ -27,6 +27,8 @@ def test_build_overview_viewmodel_returns_cards_and_chart_rows():
     assert vm["cards"]["total_tokens"] == 100
     assert vm["cards"]["input_tokens"] == 40
     assert vm["cards"]["output_tokens"] == 60
+    assert vm["cards"]["cache_read"] == 20
+    assert vm["cards"]["cache_write"] == 5
     assert vm["cards"]["reasoning_tokens"] == 10
     assert vm["cards"]["estimated_cost_total"] == 1.5
     assert vm["cards"]["recorded_cost_total"] == 1.2
@@ -39,6 +41,8 @@ def test_overview_viewmodel_adds_token_display_fields():
             "total_tokens": 1234567,
             "input_tokens": 400000,
             "output_tokens": 830000,
+            "cache_read": 120000,
+            "cache_write": 34000,
             "reasoning_tokens": 4567,
             "estimated_cost_total": 1.5,
             "recorded_cost_total": 1.2,
@@ -51,10 +55,14 @@ def test_overview_viewmodel_adds_token_display_fields():
     assert vm["cards"]["total_tokens"] == 1234567
     assert vm["cards"]["input_tokens"] == 400000
     assert vm["cards"]["output_tokens"] == 830000
+    assert vm["cards"]["cache_read"] == 120000
+    assert vm["cards"]["cache_write"] == 34000
     assert vm["cards"]["reasoning_tokens"] == 4567
     assert vm["cards"]["total_tokens_display"] == "1.23M"
     assert vm["cards"]["input_tokens_display"] == "0.40M"
     assert vm["cards"]["output_tokens_display"] == "0.83M"
+    assert vm["cards"]["cache_read_display"] == "0.12M"
+    assert vm["cards"]["cache_write_display"] == "0.03M"
     assert vm["cards"]["reasoning_tokens_display"] == "0.00M"
     assert vm["cards"]["estimated_cost_total_display"] == "$1.50 USD"
     assert vm["cards"]["recorded_cost_total_display"] == "$1.20 USD"
@@ -120,10 +128,10 @@ def test_build_application_viewmodels_exposes_model_day_session_and_raw_rows():
 def test_build_application_viewmodels_adds_display_fields_for_visible_token_columns():
     datasets = {
         "summary": {"total_tokens": 0, "input_tokens": 0, "output_tokens": 0, "reasoning_tokens": 0},
-        "by_model": [{"provider": "OpenAI", "model": "gpt-4.1-mini", "total_tokens": 1234567}],
-        "by_day": [{"day": "2024-03-09", "total_tokens": 400000}],
-        "by_session": [{"session_id": "s1", "session_title": "Demo", "total_tokens": 830000}],
-        "raw_messages": [{"day": "2024-03-09", "provider": "OpenAI", "model": "gpt-4.1-mini", "total_tokens": 4567, "input_tokens": 400000, "output_tokens": 830000}],
+        "by_model": [{"provider": "OpenAI", "model": "gpt-4.1-mini", "total_tokens": 1234567, "input_tokens": 400000, "output_tokens": 830000, "cache_read": 120000, "cache_write": 34000}],
+        "by_day": [{"day": "2024-03-09", "total_tokens": 400000, "input_tokens": 100000, "output_tokens": 200000, "cache_read": 70000, "cache_write": 30000}],
+        "by_session": [{"session_id": "s1", "session_title": "Demo", "total_tokens": 830000, "input_tokens": 300000, "output_tokens": 400000, "cache_read": 100000, "cache_write": 30000}],
+        "raw_messages": [{"day": "2024-03-09", "provider": "OpenAI", "model": "gpt-4.1-mini", "total_tokens": 4567, "input_tokens": 400000, "output_tokens": 830000, "cache_read": 120000, "cache_write": 34000}],
     }
 
     vm = build_application_viewmodels(datasets)
@@ -140,6 +148,10 @@ def test_build_application_viewmodels_adds_display_fields_for_visible_token_colu
     assert vm["raw_messages"][0]["input_tokens_display"] == "0.40M"
     assert vm["raw_messages"][0]["output_tokens"] == 830000
     assert vm["raw_messages"][0]["output_tokens_display"] == "0.83M"
+    assert vm["raw_messages"][0]["cache_read"] == 120000
+    assert vm["raw_messages"][0]["cache_read_display"] == "0.12M"
+    assert vm["raw_messages"][0]["cache_write"] == 34000
+    assert vm["raw_messages"][0]["cache_write_display"] == "0.03M"
 
 
 def test_build_application_viewmodels_marks_unpriced_rows():
@@ -285,14 +297,14 @@ def test_pie_chart_sets_labels_for_token_composition():
     charts.plot_pie_chart(
         figure,
         title="token 构成",
-        labels=["输入 token", "输出 token", "推理 token"],
-        values=[40, 50, 10],
+        labels=["输入 token", "输出 token", "缓存输入 token", "缓存输出 token"],
+        values=[40, 50, 8, 2],
     )
 
     axis = figure.axes[0]
     assert axis.get_title() == "token 构成"
-    labels = [text.get_text() for text in axis.texts if text.get_text() in {"输入 token", "输出 token", "推理 token"}]
-    assert labels == ["输入 token", "输出 token", "推理 token"]
+    labels = [text.get_text() for text in axis.texts if text.get_text() in {"输入 token", "输出 token", "缓存输入 token", "缓存输出 token"}]
+    assert labels == ["输入 token", "输出 token", "缓存输入 token", "缓存输出 token"]
 
 
 @pytest.mark.skipif(charts.Figure is None, reason="matplotlib unavailable")
@@ -303,8 +315,8 @@ def test_pie_chart_renders_empty_state_when_all_values_zero():
     charts.plot_pie_chart(
         figure,
         title="token 构成",
-        labels=["输入 token", "输出 token", "推理 token"],
-        values=[0, 0, 0],
+        labels=["输入 token", "输出 token", "缓存输入 token", "缓存输出 token"],
+        values=[0, 0, 0, 0],
     )
 
     axis = figure.axes[0]
@@ -330,6 +342,48 @@ def test_pie_chart_rejects_mismatched_labels_and_values():
         charts.plot_pie_chart(figure, title="token 构成", labels=["输入 token"], values=[])
 
 
+@pytest.mark.skipif(charts.Figure is None, reason="matplotlib unavailable")
+def test_stacked_horizontal_bar_chart_renders_segment_legend_and_labels():
+    figure = charts.create_figure()
+    assert figure is not None
+
+    charts.plot_stacked_horizontal_bar_chart(
+        figure,
+        title="Top Models",
+        labels=["openai/gpt-4.1-mini", "openai/o3"],
+        series={
+            "input_tokens": [100, 80],
+            "output_tokens": [30, 20],
+            "cache_read": [10, 5],
+            "cache_write": [0, 0],
+        },
+    )
+
+    axis = figure.axes[0]
+    assert axis.get_title() == "Top Models"
+    assert [tick.get_text() for tick in axis.get_yticklabels()] == [
+        "openai/gpt-4.1-mini",
+        "openai/o3",
+    ]
+    legend = axis.get_legend()
+    assert legend is not None
+    assert [text.get_text() for text in legend.get_texts()] == ["输入 token", "输出 token", "缓存输入 token", "缓存输出 token"]
+
+
+@pytest.mark.skipif(charts.Figure is None, reason="matplotlib unavailable")
+def test_stacked_bar_chart_rejects_mismatched_series_lengths():
+    figure = charts.create_figure()
+    assert figure is not None
+
+    with pytest.raises(ValueError, match="same length"):
+        charts.plot_stacked_bar_chart(
+            figure,
+            title="每日 token",
+            labels=["03/09"],
+            series={"input_tokens": [1], "output_tokens": []},
+        )
+
+
 def test_populate_view_refreshes_tables_and_charts():
     calls = []
     app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
@@ -339,6 +393,8 @@ def test_populate_view_refreshes_tables_and_charts():
                 "total_tokens": 100,
                 "input_tokens": 40,
                 "output_tokens": 50,
+                "cache_read": 8,
+                "cache_write": 2,
                 "reasoning_tokens": 10,
             },
             "daily_rows": [{"day": "2024-03-09", "total_tokens": 100}],
@@ -352,6 +408,8 @@ def test_populate_view_refreshes_tables_and_charts():
         "total_tokens": SimpleNamespace(configure=lambda **kwargs: None),
         "input_tokens": SimpleNamespace(configure=lambda **kwargs: None),
         "output_tokens": SimpleNamespace(configure=lambda **kwargs: None),
+        "cache_read": SimpleNamespace(configure=lambda **kwargs: None),
+        "cache_write": SimpleNamespace(configure=lambda **kwargs: None),
         "reasoning_tokens": SimpleNamespace(configure=lambda **kwargs: None),
     }
     app.overview_table = object()
@@ -407,6 +465,10 @@ def test_populate_view_uses_token_display_fields_for_cards_and_tables():
                 "input_tokens_display": "0.40M",
                 "output_tokens": 830000,
                 "output_tokens_display": "0.83M",
+                "cache_read": 120000,
+                "cache_read_display": "0.12M",
+                "cache_write": 34000,
+                "cache_write_display": "0.03M",
                 "reasoning_tokens": 4567,
                 "reasoning_tokens_display": "0.00M",
                 "estimated_cost_total": "1.50",
@@ -429,6 +491,10 @@ def test_populate_view_uses_token_display_fields_for_cards_and_tables():
                 "model": "gpt-4.1-mini",
                 "total_tokens": 1234567,
                 "total_tokens_display": "1.23M",
+                "input_tokens_display": "0.40M",
+                "output_tokens_display": "0.83M",
+                "cache_read_display": "0.12M",
+                "cache_write_display": "0.03M",
                 "estimated_cost_display": "$1.50 USD",
                 "recorded_cost_display": "$1.20 USD",
             }
@@ -438,6 +504,10 @@ def test_populate_view_uses_token_display_fields_for_cards_and_tables():
                 "day": "2024-03-09",
                 "total_tokens": 400000,
                 "total_tokens_display": "0.40M",
+                "input_tokens_display": "0.10M",
+                "output_tokens_display": "0.20M",
+                "cache_read_display": "0.07M",
+                "cache_write_display": "0.03M",
                 "estimated_cost_display": "$1.50 USD",
                 "recorded_cost_display": "$1.20 USD",
             }
@@ -448,6 +518,10 @@ def test_populate_view_uses_token_display_fields_for_cards_and_tables():
                 "session_title": "Demo",
                 "total_tokens": 830000,
                 "total_tokens_display": "0.83M",
+                "input_tokens_display": "0.30M",
+                "output_tokens_display": "0.40M",
+                "cache_read_display": "0.10M",
+                "cache_write_display": "0.03M",
                 "estimated_cost_display": "$1.50 USD",
                 "recorded_cost_display": "$1.20 USD",
             }
@@ -462,6 +536,10 @@ def test_populate_view_uses_token_display_fields_for_cards_and_tables():
                 "input_tokens_display": "0.40M",
                 "output_tokens": 830000,
                 "output_tokens_display": "0.83M",
+                "cache_read": 120000,
+                "cache_read_display": "0.12M",
+                "cache_write": 34000,
+                "cache_write_display": "0.03M",
                 "estimated_cost_display": "$1.50 USD",
                 "recorded_cost_display": "$1.20 USD",
             }
@@ -471,21 +549,25 @@ def test_populate_view_uses_token_display_fields_for_cards_and_tables():
         "total_tokens": FakeLabel(),
         "input_tokens": FakeLabel(),
         "output_tokens": FakeLabel(),
+        "cache_read": FakeLabel(),
+        "cache_write": FakeLabel(),
         "reasoning_tokens": FakeLabel(),
         "estimated_cost_total": FakeLabel(),
         "recorded_cost_total": FakeLabel(),
     }
     app.overview_table = FakeTree(["day", "total_tokens_display", "estimated_cost_display"])
     app.treeviews = {
-        "models": FakeTree(["provider", "model", "total_tokens_display", "estimated_cost_display", "recorded_cost_display"]),
-        "days": FakeTree(["day", "total_tokens_display", "estimated_cost_display", "recorded_cost_display"]),
-        "sessions": FakeTree(["session_id", "session_title", "total_tokens_display", "estimated_cost_display", "recorded_cost_display"]),
+        "models": FakeTree(["provider", "model", "total_tokens_display", "input_tokens_display", "output_tokens_display", "cache_read_display", "cache_write_display", "estimated_cost_display", "recorded_cost_display"]),
+        "days": FakeTree(["day", "total_tokens_display", "input_tokens_display", "output_tokens_display", "cache_read_display", "cache_write_display", "estimated_cost_display", "recorded_cost_display"]),
+        "sessions": FakeTree(["session_id", "session_title", "total_tokens_display", "input_tokens_display", "output_tokens_display", "cache_read_display", "cache_write_display", "estimated_cost_display", "recorded_cost_display"]),
         "raw_messages": FakeTree([
             "provider",
             "model",
             "total_tokens_display",
             "input_tokens_display",
             "output_tokens_display",
+            "cache_read_display",
+            "cache_write_display",
             "estimated_cost_display",
             "recorded_cost_display",
         ]),
@@ -497,17 +579,19 @@ def test_populate_view_uses_token_display_fields_for_cards_and_tables():
     assert app.overview_card_labels["total_tokens"].text == "总 token: 1.23M"
     assert app.overview_card_labels["input_tokens"].text == "输入 token: 0.40M"
     assert app.overview_card_labels["output_tokens"].text == "输出 token: 0.83M"
+    assert app.overview_card_labels["cache_read"].text == "缓存输入 token: 0.12M"
+    assert app.overview_card_labels["cache_write"].text == "缓存输出 token: 0.03M"
     assert app.overview_card_labels["reasoning_tokens"].text == "推理 token: 0.00M"
     assert app.overview_card_labels["estimated_cost_total"].text == "预估价格: $1.50 USD"
     assert app.overview_card_labels["recorded_cost_total"].text == "已记录价格（美元）: $1.20 USD"
     assert app.overview_table.rows == [("2024-03-09", "1.23M", "$1.50 USD")]
     assert app.treeviews["models"].rows == [
-        ("openai", "gpt-4.1-mini", "1.23M", "$1.50 USD", "$1.20 USD")
+        ("openai", "gpt-4.1-mini", "1.23M", "0.40M", "0.83M", "0.12M", "0.03M", "$1.50 USD", "$1.20 USD")
     ]
-    assert app.treeviews["days"].rows == [("2024-03-09", "0.40M", "$1.50 USD", "$1.20 USD")]
-    assert app.treeviews["sessions"].rows == [("s1", "Demo", "0.83M", "$1.50 USD", "$1.20 USD")]
+    assert app.treeviews["days"].rows == [("2024-03-09", "0.40M", "0.10M", "0.20M", "0.07M", "0.03M", "$1.50 USD", "$1.20 USD")]
+    assert app.treeviews["sessions"].rows == [("s1", "Demo", "0.83M", "0.30M", "0.40M", "0.10M", "0.03M", "$1.50 USD", "$1.20 USD")]
     assert app.treeviews["raw_messages"].rows == [
-        ("openai", "gpt-4.1-mini", "0.00M", "0.40M", "0.83M", "$1.50 USD", "$1.20 USD")
+        ("openai", "gpt-4.1-mini", "0.00M", "0.40M", "0.83M", "0.12M", "0.03M", "$1.50 USD", "$1.20 USD")
     ]
 
 
@@ -565,6 +649,8 @@ def test_populate_view_preserves_current_raw_message_page_and_refreshes_paginati
                 "total_tokens": 100,
                 "input_tokens": 40,
                 "output_tokens": 50,
+                "cache_read": 8,
+                "cache_write": 2,
                 "reasoning_tokens": 10,
             },
             "daily_rows": [{"day": "2024-03-09", "total_tokens": 100}],
@@ -578,6 +664,8 @@ def test_populate_view_preserves_current_raw_message_page_and_refreshes_paginati
         "total_tokens": SimpleNamespace(configure=lambda **kwargs: None),
         "input_tokens": SimpleNamespace(configure=lambda **kwargs: None),
         "output_tokens": SimpleNamespace(configure=lambda **kwargs: None),
+        "cache_read": SimpleNamespace(configure=lambda **kwargs: None),
+        "cache_write": SimpleNamespace(configure=lambda **kwargs: None),
         "reasoning_tokens": SimpleNamespace(configure=lambda **kwargs: None),
     }
     app.overview_table = object()
@@ -951,60 +1039,65 @@ def test_create_treeview_localizes_column_headings(monkeypatch):
 def test_model_chart_rows_are_sorted_descending_and_trimmed_to_top_10():
     rows = [{"provider": "openai", "model": f"m{i}", "total_tokens": i} for i in range(1, 15)]
 
-    labels, values = gui_module.build_top_model_chart_data(rows)
+    labels, series = gui_module.build_top_model_chart_data(rows)
 
     assert len(labels) == 10
     assert labels[0] == "openai/m14"
-    assert values[0] == 14
+    assert series["input_tokens"][0] == 0.0
     assert labels[-1] == "openai/m5"
-    assert values[-1] == 5
+    assert sum(component[-1] for component in series.values()) == 0.0
 
 
 def test_overview_top_model_chart_uses_descending_total_tokens():
-    labels, values = gui_module.build_top_model_chart_data(
+    labels, series = gui_module.build_top_model_chart_data(
         [
-            {"provider": "openai", "model": "m1", "total_tokens": 10},
-            {"provider": "openai", "model": "m2", "total_tokens": 30},
-            {"provider": "openai", "model": "m3", "total_tokens": 20},
+            {"provider": "openai", "model": "m1", "total_tokens": 10, "input_tokens": 10},
+            {"provider": "openai", "model": "m2", "total_tokens": 30, "cache_read": 30},
+            {"provider": "openai", "model": "m3", "total_tokens": 20, "output_tokens": 20},
         ]
     )
 
     assert labels == ["openai/m2", "openai/m3", "openai/m1"]
-    assert values == [30, 20, 10]
+    assert series["cache_read"] == [3.0e-05, 0.0, 0.0]
+    assert series["output_tokens"] == [0.0, 2.0e-05, 0.0]
+    assert series["input_tokens"] == [0.0, 0.0, 1.0e-05]
 
 
 def test_session_chart_uses_session_id_when_title_missing():
-    labels, values = gui_module.build_top_session_chart_data(
-        [{"session_id": "s1", "session_title": "", "total_tokens": 7}]
+    labels, series = gui_module.build_top_session_chart_data(
+        [{"session_id": "s1", "session_title": "", "total_tokens": 7, "cache_read": 7}]
     )
 
     assert labels == ["s1"]
-    assert values == [7]
+    assert series["cache_read"] == [7 / 1_000_000]
 
 
 def test_day_chart_rows_are_sorted_ascending():
-    labels, values = gui_module.build_day_chart_data(
+    labels, series = gui_module.build_day_chart_data(
         [
-            {"day": "2024-03-10", "total_tokens": 20},
-            {"day": "2024-03-09", "total_tokens": 10},
+            {"day": "2024-03-10", "total_tokens": 20, "output_tokens": 20},
+            {"day": "2024-03-09", "total_tokens": 10, "input_tokens": 10},
         ]
     )
 
     assert labels == ["03/09", "03/10"]
-    assert values == [10, 20]
+    assert series["input_tokens"] == [1.0e-05, 0.0]
+    assert series["output_tokens"] == [0.0, 2.0e-05]
 
 
 def test_day_chart_rows_sort_valid_non_zero_padded_days_before_malformed_labels():
-    labels, values = gui_module.build_day_chart_data(
+    labels, series = gui_module.build_day_chart_data(
         [
-            {"day": "2024-3-10", "total_tokens": 20},
-            {"day": "bad-day", "total_tokens": 99},
-            {"day": "2024-3-9", "total_tokens": 10},
+            {"day": "2024-3-10", "total_tokens": 20, "output_tokens": 20},
+            {"day": "bad-day", "total_tokens": 99, "cache_read": 99},
+            {"day": "2024-3-9", "total_tokens": 10, "input_tokens": 10},
         ]
     )
 
     assert labels == ["03/09", "03/10", "bad-day"]
-    assert values == [10, 20, 99]
+    assert series["input_tokens"] == [1.0e-05, 0.0, 0.0]
+    assert series["output_tokens"] == [0.0, 2.0e-05, 0.0]
+    assert series["cache_read"] == [0.0, 0.0, 9.9e-05]
 
 
 @pytest.mark.parametrize(
@@ -1023,76 +1116,76 @@ def test_format_day_label(day, expected):
 
 
 def test_build_recent_day_chart_data_uses_latest_seven_days_sorted_ascending_and_formats_labels():
-    labels, values = gui_module.build_recent_day_chart_data(
+    labels, series = gui_module.build_recent_day_chart_data(
         [
-            {"day": "2024-03-08", "total_tokens": 80},
-            {"day": "2024-03-01", "total_tokens": 10},
-            {"day": "2024-03-05", "total_tokens": 50},
-            {"day": "2024-03-03", "total_tokens": 30},
-            {"day": "2024-03-07", "total_tokens": 70},
-            {"day": "2024-03-02", "total_tokens": 20},
-            {"day": "2024-03-06", "total_tokens": 60},
-            {"day": "2024-03-04", "total_tokens": 40},
+            {"day": "2024-03-08", "total_tokens": 80, "input_tokens": 80},
+            {"day": "2024-03-01", "total_tokens": 10, "input_tokens": 10},
+            {"day": "2024-03-05", "total_tokens": 50, "input_tokens": 50},
+            {"day": "2024-03-03", "total_tokens": 30, "input_tokens": 30},
+            {"day": "2024-03-07", "total_tokens": 70, "input_tokens": 70},
+            {"day": "2024-03-02", "total_tokens": 20, "input_tokens": 20},
+            {"day": "2024-03-06", "total_tokens": 60, "input_tokens": 60},
+            {"day": "2024-03-04", "total_tokens": 40, "input_tokens": 40},
         ]
     )
 
     assert labels == ["03/02", "03/03", "03/04", "03/05", "03/06", "03/07", "03/08"]
-    assert values == [20, 30, 40, 50, 60, 70, 80]
+    assert series["input_tokens"] == [2.0e-05, 3.0e-05, 4.0e-05, 5.0e-05, 6.0e-05, 7.0e-05, 8.0e-05]
 
 
 def test_build_recent_day_chart_data_uses_latest_seven_calendar_days_and_fills_missing_days():
-    labels, values = gui_module.build_recent_day_chart_data(
+    labels, series = gui_module.build_recent_day_chart_data(
         [
-            {"day": "2024-03-08", "total_tokens": 80},
-            {"day": "2024-03-06", "total_tokens": 60},
-            {"day": "2024-03-03", "total_tokens": 30},
-            {"day": "2024-03-02", "total_tokens": 20},
-            {"day": "bad-day", "total_tokens": 999},
+            {"day": "2024-03-08", "total_tokens": 80, "input_tokens": 80},
+            {"day": "2024-03-06", "total_tokens": 60, "input_tokens": 60},
+            {"day": "2024-03-03", "total_tokens": 30, "input_tokens": 30},
+            {"day": "2024-03-02", "total_tokens": 20, "input_tokens": 20},
+            {"day": "bad-day", "total_tokens": 999, "cache_read": 999},
         ]
     )
 
     assert labels == ["03/02", "03/03", "03/04", "03/05", "03/06", "03/07", "03/08"]
-    assert values == [20, 30, 0, 0, 60, 0, 80]
+    assert series["input_tokens"] == [2.0e-05, 3.0e-05, 0.0, 0.0, 6.0e-05, 0.0, 8.0e-05]
 
 
 def test_build_peak_day_chart_data_uses_top_seven_days_with_day_desc_tiebreaker_and_formats_labels():
-    labels, values = gui_module.build_peak_day_chart_data(
+    labels, series = gui_module.build_peak_day_chart_data(
         [
-            {"day": "2024-03-01", "total_tokens": 100},
-            {"day": "2024-03-02", "total_tokens": 100},
-            {"day": "2024-03-03", "total_tokens": 90},
-            {"day": "2024-03-04", "total_tokens": 80},
-            {"day": "2024-03-05", "total_tokens": 70},
-            {"day": "2024-03-06", "total_tokens": 60},
-            {"day": "2024-03-07", "total_tokens": 50},
-            {"day": "2024-03-08", "total_tokens": 40},
+            {"day": "2024-03-01", "total_tokens": 100, "input_tokens": 100},
+            {"day": "2024-03-02", "total_tokens": 100, "input_tokens": 100},
+            {"day": "2024-03-03", "total_tokens": 90, "input_tokens": 90},
+            {"day": "2024-03-04", "total_tokens": 80, "input_tokens": 80},
+            {"day": "2024-03-05", "total_tokens": 70, "input_tokens": 70},
+            {"day": "2024-03-06", "total_tokens": 60, "input_tokens": 60},
+            {"day": "2024-03-07", "total_tokens": 50, "input_tokens": 50},
+            {"day": "2024-03-08", "total_tokens": 40, "input_tokens": 40},
         ]
     )
 
     assert labels == ["03/02", "03/01", "03/03", "03/04", "03/05", "03/06", "03/07"]
-    assert values == [100, 100, 90, 80, 70, 60, 50]
+    assert series["input_tokens"] == [0.0001, 0.0001, 9.0e-05, 8.0e-05, 7.0e-05, 6.0e-05, 5.0e-05]
 
 
 def test_build_peak_day_chart_data_uses_month_day_only_even_for_cross_year_duplicates():
-    labels, values = gui_module.build_peak_day_chart_data(
+    labels, series = gui_module.build_peak_day_chart_data(
         [
-            {"day": "2025-03-02", "total_tokens": 300},
-            {"day": "2024-03-02", "total_tokens": 250},
-            {"day": "2024-03-01", "total_tokens": 200},
+            {"day": "2025-03-02", "total_tokens": 300, "cache_read": 300},
+            {"day": "2024-03-02", "total_tokens": 250, "cache_read": 250},
+            {"day": "2024-03-01", "total_tokens": 200, "cache_read": 200},
         ]
     )
 
     assert labels == ["03/02", "03/02", "03/01"]
-    assert values == [300, 250, 200]
+    assert series["cache_read"] == [0.0003, 0.00025, 0.0002]
 
 
-def test_overview_composition_chart_uses_input_output_reasoning_cards():
+def test_overview_composition_chart_uses_input_output_and_cache_cards():
     labels, values = gui_module.build_overview_composition_chart_data(
-        {"input_tokens": 40, "output_tokens": 50, "reasoning_tokens": 10}
+        {"input_tokens": 40, "output_tokens": 50, "cache_read": 8, "cache_write": 2}
     )
 
-    assert labels == ["输入 token", "输出 token", "推理 token"]
-    assert values == [40, 50, 10]
+    assert labels == ["输入 token", "输出 token", "缓存输入 token", "缓存输出 token"]
+    assert values == [40, 50, 8, 2]
 
 
 def test_scale_tokens_to_millions_handles_bad_inputs_and_scales_numbers():
@@ -1104,22 +1197,22 @@ def test_refresh_overview_chart_methods_scale_tokens_to_millions_and_use_expecte
     app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
     app.viewmodels = {
         "overview": {
-            "cards": {"input_tokens": 400_000, "output_tokens": 500_000, "reasoning_tokens": 100_000},
+            "cards": {"input_tokens": 400_000, "output_tokens": 500_000, "cache_read": 100_000, "cache_write": 25_000},
             "daily_rows": [
-                {"day": "2024-03-10", "total_tokens": 2_500_000},
-                {"day": "2024-03-09", "total_tokens": 2_000_000},
-                {"day": "2024-03-08", "total_tokens": 1_500_000},
-                {"day": "2024-03-06", "total_tokens": 500_000},
-                {"day": "2024-03-05", "total_tokens": 2_200_000},
-                {"day": "2024-03-04", "total_tokens": 1_000_000},
-                {"day": "2024-03-03", "total_tokens": 2_400_000},
-                {"day": "2024-03-02", "total_tokens": 3_000_000},
-                {"day": "2023-03-07", "total_tokens": 2_700_000},
+                {"day": "2024-03-10", "total_tokens": 2_500_000, "input_tokens": 2_500_000},
+                {"day": "2024-03-09", "total_tokens": 2_000_000, "input_tokens": 2_000_000},
+                {"day": "2024-03-08", "total_tokens": 1_500_000, "input_tokens": 1_500_000},
+                {"day": "2024-03-06", "total_tokens": 500_000, "input_tokens": 500_000},
+                {"day": "2024-03-05", "total_tokens": 2_200_000, "input_tokens": 2_200_000},
+                {"day": "2024-03-04", "total_tokens": 1_000_000, "input_tokens": 1_000_000},
+                {"day": "2024-03-03", "total_tokens": 2_400_000, "input_tokens": 2_400_000},
+                {"day": "2024-03-02", "total_tokens": 3_000_000, "input_tokens": 3_000_000},
+                {"day": "2023-03-07", "total_tokens": 2_700_000, "input_tokens": 2_700_000},
             ],
         },
         "models": [
-            {"provider": "openai", "model": "m1", "total_tokens": 1_000_000},
-            {"provider": "openai", "model": "m2", "total_tokens": 3_000_000},
+            {"provider": "openai", "model": "m1", "total_tokens": 1_000_000, "input_tokens": 1_000_000},
+            {"provider": "openai", "model": "m2", "total_tokens": 3_000_000, "cache_read": 3_000_000},
         ],
     }
     app.charts = {
@@ -1132,8 +1225,8 @@ def test_refresh_overview_chart_methods_scale_tokens_to_millions_and_use_expecte
     def record(name):
         return lambda figure, **kwargs: calls.append((name, kwargs))
 
-    monkeypatch.setattr(gui_module, "plot_line_chart", record("line"))
-    monkeypatch.setattr(gui_module, "plot_horizontal_bar_chart", record("bar"))
+    monkeypatch.setattr(gui_module, "plot_stacked_bar_chart", record("stacked_bar"))
+    monkeypatch.setattr(gui_module, "plot_stacked_horizontal_bar_chart", record("stacked_hbar"))
     monkeypatch.setattr(gui_module, "plot_pie_chart", record("pie"))
 
     app._refresh_overview_daily_chart()
@@ -1143,29 +1236,44 @@ def test_refresh_overview_chart_methods_scale_tokens_to_millions_and_use_expecte
 
     assert calls == [
         (
-            "line",
+            "stacked_bar",
             {
                 "title": "每日 token",
                 "labels": ["03/04", "03/05", "03/06", "03/07", "03/08", "03/09", "03/10"],
-                "values": [1.0, 2.2, 0.5, 0.0, 1.5, 2.0, 2.5],
+                "series": {
+                    "input_tokens": [1.0, 2.2, 0.5, 0.0, 1.5, 2.0, 2.5],
+                    "output_tokens": [0.0] * 7,
+                    "cache_read": [0.0] * 7,
+                    "cache_write": [0.0] * 7,
+                },
                 "ylabel": "token（M）",
             },
         ),
         (
-            "bar",
+            "stacked_hbar",
             {
                 "title": "最高 token 七天",
                 "labels": ["03/02", "03/07", "03/10", "03/03", "03/05", "03/09", "03/08"],
-                "values": [3.0, 2.7, 2.5, 2.4, 2.2, 2.0, 1.5],
+                "series": {
+                    "input_tokens": [3.0, 2.7, 2.5, 2.4, 2.2, 2.0, 1.5],
+                    "output_tokens": [0.0] * 7,
+                    "cache_read": [0.0] * 7,
+                    "cache_write": [0.0] * 7,
+                },
                 "xlabel": "token（M）",
             },
         ),
         (
-            "bar",
+            "stacked_hbar",
             {
                 "title": "热门模型",
                 "labels": ["openai/m2", "openai/m1"],
-                "values": [3.0, 1.0],
+                "series": {
+                    "input_tokens": [0.0, 1.0],
+                    "output_tokens": [0.0, 0.0],
+                    "cache_read": [3.0, 0.0],
+                    "cache_write": [0.0, 0.0],
+                },
                 "xlabel": "token（M）",
             },
         ),
@@ -1173,8 +1281,8 @@ def test_refresh_overview_chart_methods_scale_tokens_to_millions_and_use_expecte
             "pie",
             {
                 "title": "token 构成（M）",
-                "labels": ["输入 token", "输出 token", "推理 token"],
-                "values": [0.4, 0.5, 0.1],
+                "labels": ["输入 token", "输出 token", "缓存输入 token", "缓存输出 token"],
+                "values": [0.4, 0.5, 0.1, 0.025],
             },
         ),
     ]
@@ -1193,16 +1301,16 @@ def test_refresh_analysis_charts_scale_tokens_to_millions_and_use_m_labels(monke
     app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
     app.viewmodels = {
         "models": [
-            {"provider": "openai", "model": "m1", "total_tokens": 1_000_000},
-            {"provider": "openai", "model": "m2", "total_tokens": 3_000_000},
+            {"provider": "openai", "model": "m1", "total_tokens": 1_000_000, "input_tokens": 1_000_000},
+            {"provider": "openai", "model": "m2", "total_tokens": 3_000_000, "cache_read": 3_000_000},
         ],
         "days": [
-            {"day": "2024-03-10", "total_tokens": 2_500_000},
-            {"day": "2024-03-09", "total_tokens": 2_000_000},
+            {"day": "2024-03-10", "total_tokens": 2_500_000, "output_tokens": 2_500_000},
+            {"day": "2024-03-09", "total_tokens": 2_000_000, "input_tokens": 2_000_000},
         ],
         "sessions": [
-            {"session_id": "s1", "session_title": "", "total_tokens": 500_000},
-            {"session_id": "s2", "session_title": "Demo", "total_tokens": 2_000_000},
+            {"session_id": "s1", "session_title": "", "total_tokens": 500_000, "cache_write": 500_000},
+            {"session_id": "s2", "session_title": "Demo", "total_tokens": 2_000_000, "cache_read": 2_000_000},
         ],
     }
     app.charts = {
@@ -1214,8 +1322,8 @@ def test_refresh_analysis_charts_scale_tokens_to_millions_and_use_m_labels(monke
     def record(name):
         return lambda figure, **kwargs: calls.append((name, kwargs))
 
-    monkeypatch.setattr(gui_module, "plot_horizontal_bar_chart", record("bar"))
-    monkeypatch.setattr(gui_module, "plot_line_chart", record("line"))
+    monkeypatch.setattr(gui_module, "plot_stacked_horizontal_bar_chart", record("stacked_hbar"))
+    monkeypatch.setattr(gui_module, "plot_stacked_bar_chart", record("stacked_bar"))
 
     app._refresh_models_chart()
     app._refresh_days_chart()
@@ -1223,29 +1331,44 @@ def test_refresh_analysis_charts_scale_tokens_to_millions_and_use_m_labels(monke
 
     assert calls == [
         (
-            "bar",
+            "stacked_hbar",
             {
                 "title": "热门模型",
                 "labels": ["openai/m2", "openai/m1"],
-                "values": [3.0, 1.0],
+                "series": {
+                    "input_tokens": [0.0, 1.0],
+                    "output_tokens": [0.0, 0.0],
+                    "cache_read": [3.0, 0.0],
+                    "cache_write": [0.0, 0.0],
+                },
                 "xlabel": "token（M）",
             },
         ),
         (
-            "line",
+            "stacked_bar",
             {
                 "title": "每日 token",
                 "labels": ["03/09", "03/10"],
-                "values": [2.0, 2.5],
+                "series": {
+                    "input_tokens": [2.0, 0.0],
+                    "output_tokens": [0.0, 2.5],
+                    "cache_read": [0.0, 0.0],
+                    "cache_write": [0.0, 0.0],
+                },
                 "ylabel": "token（M）",
             },
         ),
         (
-            "bar",
+            "stacked_hbar",
             {
                 "title": "热门会话",
                 "labels": ["Demo", "s1"],
-                "values": [2.0, 0.5],
+                "series": {
+                    "input_tokens": [0.0, 0.0],
+                    "output_tokens": [0.0, 0.0],
+                    "cache_read": [2.0, 0.0],
+                    "cache_write": [0.0, 0.5],
+                },
                 "xlabel": "token（M）",
             },
         ),
@@ -1276,14 +1399,14 @@ def test_refresh_charts_isolates_overview_daily_data_preparation_failures(monkey
 
     monkeypatch.setattr(gui_module, "build_recent_day_chart_data", lambda rows: (_ for _ in ()).throw(KeyError("bad day")))
     monkeypatch.setattr(gui_module, "build_peak_day_chart_data", lambda rows: (_ for _ in ()).throw(KeyError("bad day")))
-    monkeypatch.setattr(gui_module, "plot_line_chart", lambda figure, **kwargs: calls.append("line"))
-    monkeypatch.setattr(gui_module, "plot_horizontal_bar_chart", lambda figure, **kwargs: calls.append("bar"))
+    monkeypatch.setattr(gui_module, "plot_stacked_bar_chart", lambda figure, **kwargs: calls.append("stacked_bar"))
+    monkeypatch.setattr(gui_module, "plot_stacked_horizontal_bar_chart", lambda figure, **kwargs: calls.append("stacked_hbar"))
     monkeypatch.setattr(gui_module, "plot_pie_chart", lambda figure, **kwargs: calls.append("pie"))
 
     warnings = app._refresh_charts()
 
     assert warnings == ["overview_daily: 'bad day'", "overview_peak_days: 'bad day'"]
-    assert "bar" in calls
+    assert "stacked_hbar" in calls
     assert "pie" in calls
     assert any(call[0] == "status" and "已加载，但图表有警告：图表刷新失败：'bad day'" in call[1] for call in calls if isinstance(call, tuple))
 
@@ -1309,14 +1432,14 @@ def test_refresh_charts_isolates_days_data_preparation_failures(monkeypatch):
     }
 
     monkeypatch.setattr(gui_module, "build_day_chart_data", lambda rows: (_ for _ in ()).throw(KeyError("bad day")))
-    monkeypatch.setattr(gui_module, "plot_line_chart", lambda figure, **kwargs: calls.append("line"))
-    monkeypatch.setattr(gui_module, "plot_horizontal_bar_chart", lambda figure, **kwargs: calls.append("bar"))
+    monkeypatch.setattr(gui_module, "plot_stacked_bar_chart", lambda figure, **kwargs: calls.append("stacked_bar"))
+    monkeypatch.setattr(gui_module, "plot_stacked_horizontal_bar_chart", lambda figure, **kwargs: calls.append("stacked_hbar"))
     monkeypatch.setattr(gui_module, "plot_pie_chart", lambda figure, **kwargs: calls.append("pie"))
 
     warnings = app._refresh_charts()
 
     assert warnings == ["days: 'bad day'"]
-    assert "bar" in calls
+    assert "stacked_hbar" in calls
     assert "pie" in calls
     assert any(call[0] == "status" and "已加载，但图表有警告：图表刷新失败：'bad day'" in call[1] for call in calls if isinstance(call, tuple))
 
@@ -1359,10 +1482,11 @@ def test_refresh_charts_runs_overview_models_refresh_and_surfaces_its_warning():
     assert any(call[0] == "status" and "图表刷新失败：boom" in call[1] for call in calls if isinstance(call, tuple))
 
 
-def test_build_overview_tab_registers_peak_days_chart_in_stable_2x2_grid(monkeypatch):
+def test_build_overview_tab_places_daily_table_before_chart_grid_and_keeps_stable_2x2_charts(monkeypatch):
     labels = []
     registered = []
     chart_frames = []
+    treeview_calls = []
 
     class FakeFrame:
         def __init__(self, parent=None, **kwargs):
@@ -1426,7 +1550,7 @@ def test_build_overview_tab_registers_peak_days_chart_in_stable_2x2_grid(monkeyp
     app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
     app.tabs = {"总览": object()}
     app.charts = {}
-    app._create_treeview = lambda parent, columns: object()
+    app._create_treeview = lambda parent, columns, **kwargs: treeview_calls.append({"parent": parent, "columns": columns, **kwargs}) or object()
     app._register_chart = lambda name, figure, canvas: registered.append(name)
 
     app._build_overview_tab()
@@ -1434,6 +1558,13 @@ def test_build_overview_tab_registers_peak_days_chart_in_stable_2x2_grid(monkeyp
     overview_chart_area = app.overview_chart_area
 
     assert labels == ["每日", "最高 token 七天", "模型", "构成"]
+    assert treeview_calls == [{
+        "parent": app.tabs["总览"],
+        "columns": ["day", "total_tokens_display", "estimated_cost_display"],
+        "height": 5,
+        "expand": False,
+        "pady": (0, 4),
+    }]
     assert set(registered) == {
         "overview_daily",
         "overview_peak_days",
@@ -1560,31 +1691,33 @@ def test_build_header_uses_single_load_data_action(monkeypatch):
     assert buttons[-1]["command"] is app.load_and_export_data
 
 
-def test_schedule_initial_load_uses_after_idle_with_load_data_only():
+def test_schedule_initial_load_uses_after_and_starts_background_thread_once():
     captured = []
-    loads = []
+    starts = []
     app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
-    app.master = SimpleNamespace(after_idle=lambda callback: captured.append(callback) or "idle-1")
-    app.load_data = lambda: loads.append("load")
+    app.master = SimpleNamespace(after=lambda delay, callback: captured.append((delay, callback)) or "after-1")
+    app._start_initial_load_thread = lambda: starts.append("start")
 
     app._schedule_initial_load()
 
     assert len(captured) == 1
-    assert app._initial_load_after_id == "idle-1"
+    assert captured[0][0] == 10
+    assert app._initial_load_after_id == "after-1"
     assert app._initial_load_pending is True
-    captured[0]()
-    assert loads == ["load"]
+    captured[0][1]()
+    assert starts == ["start"]
     assert app._initial_load_after_id is None
     assert app._initial_load_pending is False
 
 
 def test_init_registers_one_initial_load_callback_and_invokes_load_once(monkeypatch):
     callbacks = []
-    loads = []
+    starts = []
 
     class FakeMaster:
-        def after_idle(self, callback):
-            callbacks.append(callback)
+        def after(self, delay, callback):
+            callbacks.append((delay, callback))
+            return "after-1"
 
     monkeypatch.setattr(gui_module.ttk.Frame, "__init__", lambda self, master: None)
     monkeypatch.setattr(gui_module.ttk.Frame, "pack", lambda self, **kwargs: None)
@@ -1592,13 +1725,14 @@ def test_init_registers_one_initial_load_callback_and_invokes_load_once(monkeypa
     monkeypatch.setattr(gui_module, "default_db_path", lambda: Path(r"C:\demo\opencode.db"))
     monkeypatch.setattr(OpenCodeTokenApp, "_build_header", lambda self: None)
     monkeypatch.setattr(OpenCodeTokenApp, "_build_notebook", lambda self: None)
-    monkeypatch.setattr(OpenCodeTokenApp, "load_data", lambda self: loads.append("load"))
+    monkeypatch.setattr(OpenCodeTokenApp, "_start_initial_load_thread", lambda self: starts.append("start"))
 
     app = OpenCodeTokenApp(FakeMaster())
 
     assert len(callbacks) == 1
-    callbacks[0]()
-    assert loads == ["load"]
+    assert callbacks[0][0] == 10
+    callbacks[0][1]()
+    assert starts == ["start"]
     assert app.master is not None
 
 
@@ -1607,8 +1741,9 @@ def test_init_startup_existing_db_loads_without_export(monkeypatch):
     calls = []
 
     class FakeMaster:
-        def after_idle(self, callback):
-            callbacks.append(callback)
+        def after(self, delay, callback):
+            callbacks.append((delay, callback))
+            return "after-1"
 
     monkeypatch.setattr(gui_module.ttk.Frame, "__init__", lambda self, master: None)
     monkeypatch.setattr(gui_module.ttk.Frame, "pack", lambda self, **kwargs: None)
@@ -1617,20 +1752,15 @@ def test_init_startup_existing_db_loads_without_export(monkeypatch):
     monkeypatch.setattr(OpenCodeTokenApp, "_build_header", lambda self: None)
     monkeypatch.setattr(OpenCodeTokenApp, "_build_notebook", lambda self: None)
     monkeypatch.setattr(Path, "exists", lambda self: True)
-    monkeypatch.setattr(gui_module, "load_usage_from_db", lambda path: {"summary": {}})
-    monkeypatch.setattr(gui_module, "price_loaded_usage", lambda datasets, entry_path=None: datasets)
-    monkeypatch.setattr(
-        gui_module,
-        "build_application_viewmodels",
-        lambda datasets: {"overview": {"cards": {}, "daily_rows": []}, "models": [], "days": [], "sessions": [], "raw_messages": []},
-    )
+    monkeypatch.setattr(OpenCodeTokenApp, "_start_initial_load_thread", lambda self: calls.append(("start_thread", None)))
     monkeypatch.setattr(gui_module, "export_usage_csvs", lambda out_dir, datasets: calls.append(("export", out_dir)))
 
     app = OpenCodeTokenApp(FakeMaster())
     app._reset_raw_message_pagination = lambda: None
     app._populate_view = lambda: []
-    callbacks[0]()
+    callbacks[0][1]()
 
+    assert ("start_thread", None) in calls
     assert not any(call[0] == "export" for call in calls)
 
 
@@ -1639,8 +1769,9 @@ def test_init_startup_does_not_show_export_failure_dialog_before_user_action(mon
     calls = []
 
     class FakeMaster:
-        def after_idle(self, callback):
-            callbacks.append(callback)
+        def after(self, delay, callback):
+            callbacks.append((delay, callback))
+            return "after-1"
 
     monkeypatch.setattr(gui_module.ttk.Frame, "__init__", lambda self, master: None)
     monkeypatch.setattr(gui_module.ttk.Frame, "pack", lambda self, **kwargs: None)
@@ -1649,21 +1780,16 @@ def test_init_startup_does_not_show_export_failure_dialog_before_user_action(mon
     monkeypatch.setattr(OpenCodeTokenApp, "_build_header", lambda self: None)
     monkeypatch.setattr(OpenCodeTokenApp, "_build_notebook", lambda self: None)
     monkeypatch.setattr(Path, "exists", lambda self: True)
-    monkeypatch.setattr(gui_module, "load_usage_from_db", lambda path: {"summary": {}})
-    monkeypatch.setattr(gui_module, "price_loaded_usage", lambda datasets, entry_path=None: datasets)
-    monkeypatch.setattr(
-        gui_module,
-        "build_application_viewmodels",
-        lambda datasets: {"overview": {"cards": {}, "daily_rows": []}, "models": [], "days": [], "sessions": [], "raw_messages": []},
-    )
+    monkeypatch.setattr(OpenCodeTokenApp, "_start_initial_load_thread", lambda self: calls.append(("start_thread", None)))
     monkeypatch.setattr(gui_module, "export_usage_csvs", lambda out_dir, datasets: (_ for _ in ()).throw(RuntimeError("磁盘满了")))
     monkeypatch.setattr(gui_module.messagebox, "showerror", lambda *args: calls.append(("dialog", args)))
 
     app = OpenCodeTokenApp(FakeMaster())
     app._reset_raw_message_pagination = lambda: None
     app._populate_view = lambda: []
-    callbacks[0]()
+    callbacks[0][1]()
 
+    assert ("start_thread", None) in calls
     assert not any(call[0] == "dialog" for call in calls)
 
 
@@ -1672,8 +1798,9 @@ def test_init_startup_missing_default_db_sets_status_without_dialog(monkeypatch)
     calls = []
 
     class FakeMaster:
-        def after_idle(self, callback):
-            callbacks.append(callback)
+        def after(self, delay, callback):
+            callbacks.append((delay, callback))
+            return "after-1"
 
     def fake_string_var(value=""):
         current = {"value": value}
@@ -1688,13 +1815,18 @@ def test_init_startup_missing_default_db_sets_status_without_dialog(monkeypatch)
     monkeypatch.setattr(gui_module, "default_db_path", lambda: Path(r"C:\missing\opencode.db"))
     monkeypatch.setattr(OpenCodeTokenApp, "_build_header", lambda self: None)
     monkeypatch.setattr(OpenCodeTokenApp, "_build_notebook", lambda self: None)
+    monkeypatch.setattr(
+        OpenCodeTokenApp,
+        "_start_initial_load_thread",
+        lambda self: self._apply_load_data_result({"export_dir": Path(r"C:\missing\token_export"), "missing": True}),
+    )
     monkeypatch.setattr(gui_module.messagebox, "showerror", lambda *args: calls.append(("dialog", args)))
     monkeypatch.setattr(Path, "exists", lambda self: False)
 
     OpenCodeTokenApp(FakeMaster())
 
     assert len(callbacks) == 1
-    callbacks[0]()
+    callbacks[0][1]()
     assert calls[-1] == ("status", "未找到数据库；请手动选择文件。")
     assert not any(call[0] == "dialog" for call in calls)
 
@@ -1705,9 +1837,9 @@ def test_manual_load_before_idle_callback_does_not_trigger_second_startup_load(m
     loads = []
 
     class FakeMaster:
-        def after_idle(self, callback):
+        def after(self, delay, callback):
             callbacks["startup"] = callback
-            return "idle-1"
+            return "after-1"
 
         def after_cancel(self, callback_id):
             cancelled.append(callback_id)
@@ -1735,8 +1867,44 @@ def test_manual_load_before_idle_callback_does_not_trigger_second_startup_load(m
     app.load_and_export_data()
     callbacks["startup"]()
 
-    assert cancelled == ["idle-1"]
+    assert cancelled == ["after-1"]
     assert loads == ["load"]
+
+
+def test_start_initial_load_thread_runs_loader_off_thread_and_applies_result_on_main_thread(monkeypatch):
+    calls = []
+
+    class FakeThread:
+        def __init__(self, target, name, daemon):
+            self.target = target
+            self.name = name
+            self.daemon = daemon
+            self.started = False
+
+        def is_alive(self):
+            return self.started
+
+        def start(self):
+            self.started = True
+            self.target()
+            self.started = False
+
+    app = cast(Any, OpenCodeTokenApp.__new__(OpenCodeTokenApp))
+    app.master = SimpleNamespace(after=lambda delay, callback: calls.append(("after", delay)) or callback())
+    app._initial_load_thread = None
+    app._initial_load_result = None
+    app._current_load_request = lambda: {"db_path": Path(r"C:\demo\opencode.db"), "export_dir": Path(r"C:\demo\token_export")}
+    app._load_data_for_display = lambda request: calls.append(("load", request)) or {"export_dir": Path(r"C:\demo\token_export"), "viewmodels": {}, "datasets": {}}
+    app._apply_load_data_result = lambda result, should_export=False: calls.append(("apply", result, should_export))
+
+    monkeypatch.setattr(gui_module.threading, "Thread", FakeThread)
+
+    app._start_initial_load_thread()
+
+    assert calls[0] == ("load", {"db_path": Path(r"C:\demo\opencode.db"), "export_dir": Path(r"C:\demo\token_export")})
+    assert calls[1][0] == "apply"
+    assert calls[1][2] is False
+    assert app._initial_load_thread is None
 
 
 def test_load_and_export_data_loads_once_and_reuses_datasets_for_view_and_export(monkeypatch):
@@ -1775,9 +1943,10 @@ def test_load_and_export_data_loads_once_and_reuses_datasets_for_view_and_export
 
     app.load_and_export_data()
 
-    assert calls[1] == ("load", db_path)
-    assert calls[2] == ("price", datasets, Path("entry.json"))
-    assert calls[3] == ("build", datasets)
+    assert calls[0] == ("load", db_path)
+    assert calls[1] == ("price", datasets, Path("entry.json"))
+    assert calls[2] == ("build", datasets)
+    assert calls[3] == ("export_dir", str(db_path.resolve().parent / "token_export"))
     assert calls[4] == ("reset_paging", viewmodels)
     assert calls[5] == ("populate", viewmodels)
     assert calls[6] == ("export", db_path.resolve().parent / "token_export", datasets)
