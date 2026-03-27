@@ -2,6 +2,8 @@
 
 OpenCode Token 是一个面向 `opencode.db` 的 Python 工具仓库，用来分析消息与 token 使用情况，并以 **GUI 浏览** 和 **CLI 导出** 两种方式提供结果。
 
+![image](./gui.png)
+
 ## 功能概览
 
 - 从 OpenCode SQLite 数据库读取消息、token 和已记录成本
@@ -11,9 +13,11 @@ OpenCode Token 是一个面向 `opencode.db` 的 Python 工具仓库，用来分
 - 导出 UTF-8 BOM CSV，便于直接用 Excel 打开
 - 提供桌面 GUI 浏览汇总卡片、图表和分页明细
 
-## 安装
+## 开发环境安装
 
 建议使用 Python 3.11+。
+
+以下方式主要用于源码调试、开发和本地验证。
 
 仅安装运行依赖：
 
@@ -29,7 +33,17 @@ python -m pip install -e .[dev]
 
 ## 使用方式
 
-### 1. 启动 GUI
+### 1. 从 Release 下载 exe 直接运行
+
+普通使用建议直接前往 [Releases 页面](https://github.com/Sakura1618/OpenCode-Token/releases/latest) 下载 `opencode_token_gui.exe`。
+
+下载后直接双击运行即可，默认数据库路径为：
+
+`%USERPROFILE%\.local\share\opencode\opencode.db`
+
+如果你的数据库不在默认位置，可以在 GUI 顶部点击“浏览”手动选择 `opencode.db`。
+
+### 2. 从源码启动 GUI（开发使用）
 
 ```bash
 python opencode_token_gui.py
@@ -41,11 +55,11 @@ python opencode_token_gui.py
 opencode-token-gui
 ```
 
-默认数据库路径为：
+源码启动时，默认数据库路径同样为：
 
 `%USERPROFILE%\.local\share\opencode\opencode.db`
 
-### 2. 导出 CSV
+### 3. 通过命令行导出 CSV
 
 ```bash
 python export_opencode_tokens.py <opencode.db路径> [输出目录]
