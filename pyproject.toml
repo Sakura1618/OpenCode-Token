@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "opencode-token"
-version = "0.1.0"
+version = "0.2.1"
 description = "Analyze OpenCode token usage from opencode.db and export priced usage reports."
 readme = "README.md"
 requires-python = ">=3.11"

@@ -97,11 +97,25 @@ def _decorate_raw_rows(rows):
     return decorated
 
 
+def _sorted_day_rows_newest_first(rows):
+    return sorted(rows, key=lambda row: row.get("day", "") or "", reverse=True)
+
+
+def _sorted_raw_rows_newest_first(rows):
+    return sorted(
+        rows,
+        key=lambda row: (row.get("time_created", 0) or 0, row.get("message_id", "") or ""),
+        reverse=True,
+    )
+
+
 def build_application_viewmodels(datasets):
+    day_rows = _sorted_day_rows_newest_first(datasets.get("by_day", []))
+    raw_message_rows = _sorted_raw_rows_newest_first(datasets.get("raw_messages", []))
     return {
-        "overview": build_overview_viewmodel(datasets),
+        "overview": build_overview_viewmodel({**datasets, "by_day": day_rows}),
         "models": _decorate_aggregate_rows(datasets.get("by_model", [])),
-        "days": _decorate_aggregate_rows(datasets.get("by_day", [])),
+        "days": _decorate_aggregate_rows(day_rows),
         "sessions": _decorate_aggregate_rows(datasets.get("by_session", [])),
-        "raw_messages": _decorate_raw_rows(datasets.get("raw_messages", [])),
+        "raw_messages": _decorate_raw_rows(raw_message_rows),
     }

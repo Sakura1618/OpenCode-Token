@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-04-04
+
+### Changed
+- Updated GUI list presentation so date-based overview, daily analysis, and raw message lists show newest entries first.
+- Kept the newest-first ordering scoped to display/viewmodel output so export dataset ordering remains unchanged.
+
+### Tests
+- Added viewmodel coverage to verify newest-first ordering for day rows and raw message rows.
+
 ## [0.1.0] - 2026-03-27
 
 ### Added

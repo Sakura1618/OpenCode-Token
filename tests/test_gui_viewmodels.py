@@ -125,6 +125,50 @@ def test_build_application_viewmodels_exposes_model_day_session_and_raw_rows():
     assert vm["raw_messages"][0]["recorded_cost_display"] == "$1.20 USD"
 
 
+def test_build_application_viewmodels_preserves_newest_first_day_and_raw_message_order():
+    datasets = {
+        "summary": {"total_tokens": 100},
+        "by_model": [],
+        "by_day": [
+            {"day": "2024-03-10", "message_count": 1, "total_tokens": 60},
+            {"day": "2024-03-09", "message_count": 1, "total_tokens": 40},
+        ],
+        "by_session": [],
+        "raw_messages": [
+            {"message_id": "m2", "day": "2024-03-10", "time_created": 2, "provider": "openai", "model": "gpt-4.1-mini", "total_tokens": 60},
+            {"message_id": "m1", "day": "2024-03-09", "time_created": 1, "provider": "openai", "model": "gpt-4.1-mini", "total_tokens": 40},
+        ],
+    }
+
+    vm = build_application_viewmodels(datasets)
+
+    assert [row["day"] for row in vm["overview"]["daily_rows"]] == ["2024-03-10", "2024-03-09"]
+    assert [row["day"] for row in vm["days"]] == ["2024-03-10", "2024-03-09"]
+    assert [row["message_id"] for row in vm["raw_messages"]] == ["m2", "m1"]
+
+
+def test_build_application_viewmodels_sorts_newest_first_even_if_dataset_is_oldest_first():
+    datasets = {
+        "summary": {"total_tokens": 100},
+        "by_model": [],
+        "by_day": [
+            {"day": "2024-03-09", "message_count": 1, "total_tokens": 40},
+            {"day": "2024-03-10", "message_count": 1, "total_tokens": 60},
+        ],
+        "by_session": [],
+        "raw_messages": [
+            {"message_id": "m1", "day": "2024-03-09", "time_created": 1, "provider": "openai", "model": "gpt-4.1-mini", "total_tokens": 40},
+            {"message_id": "m2", "day": "2024-03-10", "time_created": 2, "provider": "openai", "model": "gpt-4.1-mini", "total_tokens": 60},
+        ],
+    }
+
+    vm = build_application_viewmodels(datasets)
+
+    assert [row["day"] for row in vm["overview"]["daily_rows"]] == ["2024-03-10", "2024-03-09"]
+    assert [row["day"] for row in vm["days"]] == ["2024-03-10", "2024-03-09"]
+    assert [row["message_id"] for row in vm["raw_messages"]] == ["m2", "m1"]
+
+
 def test_build_application_viewmodels_adds_display_fields_for_visible_token_columns():
     datasets = {
         "summary": {"total_tokens": 0, "input_tokens": 0, "output_tokens": 0, "reasoning_tokens": 0},
