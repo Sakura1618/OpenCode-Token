@@ -1,5 +1,8 @@
 # OpenCode Token
 
+## 本仓库已弃用！
+建议使用 [ai-toolbox](https://github.com/coulsontl/ai-toolbox)，更美观的图标和统计支持。
+
 OpenCode Token 是一个面向 `opencode.db` 的 Python 工具仓库，用来分析消息与 token 使用情况，并以 **GUI 浏览** 和 **CLI 导出** 两种方式提供结果。
 
 ![image](./gui.png)
